@@ -3,55 +3,133 @@ package com.axiom.kai
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.axiom.kai.ui.theme.KaiTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { KaiApp() }
+        setContent { KaiTheme { KaiScreen() } }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KaiApp() {
-    var vfe by remember { mutableStateOf(2.1f) }
-    var curvature by remember { mutableStateOf(0.45f) }
-    var temp by remember { mutableStateOf(0.85f) }
-    val version = remember { try { KaiBridge.version() } catch (e: Exception) { "kai stub" } }
+fun KaiScreen(vm: ChatViewModel = viewModel()) {
+    val messages by vm.messages.collectAsState()
+    val model by vm.model.collectAsState()
+    val generating by vm.isGenerating.collectAsState()
+    var input by remember { mutableStateOf("") }
+    var pickerExpanded by remember { mutableStateOf(false) }
+    val models = listOf("qwen2.5:0.5b", "qwen2.5:7b", "llama3:8b", "gemma2:9b")
+    val lastKai = messages.lastOrNull { it.role != Role.USER }
 
-    MaterialTheme {
-        Scaffold { pad ->
-            Column(Modifier.padding(pad).padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Kai-Android — Adaptive On-Device LLM Hub", style = MaterialTheme.typography.titleLarge)
-                Text(version, style = MaterialTheme.typography.bodySmall)
-                Divider()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Kai-Android — Recursive") },
+                actions = {
+                    Box {
+                        TextButton(onClick = { pickerExpanded = true }) { Text(model) }
+                        DropdownMenu(expanded = pickerExpanded, onDismissRequest = { pickerExpanded = false }) {
+                            models.forEach { m ->
+                                DropdownMenuItem(text = { Text(m) }, onClick = { vm.setModel(m); pickerExpanded = false })
+                            }
+                        }
+                    }
+                    TextButton(onClick = { vm.clear() }) { Text("Clear") }
+                }
+            )
+        }
+    ) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            // Meters row — VFE + curvature
+            Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(Modifier.weight(1f)) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text("VFE", style = MaterialTheme.typography.labelMedium)
+                        val v = lastKai?.vfe ?: 2.1f
+                        LinearProgressIndicator(progress = (v/5f).coerceIn(0f,1f), modifier = Modifier.fillMaxWidth())
+                        Text("VFE %.1f (surprise+KL) — %s".format(v, if(v>3)"explore" else "consolidate"), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Card(Modifier.weight(1f)) {
+                    Column(Modifier.padding(8.dp)) {
+                        Text("Curvature → Temp", style = MaterialTheme.typography.labelMedium)
+                        val c = lastKai?.curvature ?: 0.45f
+                        val t = lastKai?.temp ?: 0.85f
+                        Text("g %.2f → T' %.2f".format(c, t), style = MaterialTheme.typography.bodySmall)
+                        if (c > 0.7f) Text("⚡ Novel — T auto ↑", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
 
-                // VFE meter (live when Rust wired)
-                Card { Column(Modifier.padding(16.dp)) {
-                    Text("VFE Meter — surprise + KL vs attractor", style = MaterialTheme.typography.titleMedium)
-                    Slider(value = vfe, onValueChange = { vfe = it }, valueRange = 0f..5f)
-                    Text("VFE = %.2f  (high → explore, low → consolidate)".format(vfe))
-                }}
+            // Chat list
+            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (messages.isEmpty()) {
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("Talk with me recursively, but with Kai instead.", style = MaterialTheme.typography.titleMedium)
+                                Text("You → Kai (VFE meter updates) → Kai' (ghost ↻, VFE>3) → tap ghost to recurse. Fully offline, GGUF in filesDir/models/.", style = MaterialTheme.typography.bodySmall)
+                                val ver = try { KaiBridge.version() } catch (_: Exception) { "kai-bridge stub" }
+                                Text(ver, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+                items(messages) { m ->
+                    val isUser = m.role == Role.USER
+                    val isGhost = m.role == Role.KAI_RECURSIVE
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if(isUser) Arrangement.End else Arrangement.Start) {
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = when {
+                                    isUser -> MaterialTheme.colorScheme.primaryContainer
+                                    isGhost -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                    else -> MaterialTheme.colorScheme.secondaryContainer
+                                }
+                            ),
+                            modifier = Modifier.widthIn(max = 320.dp)
+                        ) {
+                            Column(Modifier.padding(10.dp)) {
+                                Text(m.text, style = MaterialTheme.typography.bodyMedium)
+                                if (m.vfe != null) Text("VFE %.1f · g %.2f · T %.2f · %s".format(m.vfe, m.curvature?:0f, m.temp?:0f, m.model), style = MaterialTheme.typography.labelSmall)
+                                if (isGhost) {
+                                    Spacer(Modifier.height(6.dp))
+                                    OutlinedButton(onClick = { vm.promoteRecursive(m) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                                        Text("Use as prompt", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (generating) item { Text("Kai is thinking…", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall) }
+            }
 
-                Card { Column(Modifier.padding(16.dp)) {
-                    Text("Physics-Wired Temp — g_ij → curvature", style = MaterialTheme.typography.titleMedium)
-                    Slider(value = curvature, onValueChange = { curvature = it })
-                    val derived = try { KaiBridge.curvatureToTemp(temp, curvature, 0.4f) } catch (_: Exception) { temp * (1+0.4f*curvature) }
-                    Text("curvature %.2f → T %.2f → T' %.2f".format(curvature, temp, derived))
-                    if (curvature > 0.7f) Text("⚡ Novel input — temperature auto-increased", color = MaterialTheme.colorScheme.primary)
-                }}
-
-                Card { Column(Modifier.padding(16.dp)) {
-                    Text("Multi-GGUF Picker (stub)", style = MaterialTheme.typography.titleMedium)
-                    Text("qwen2.5:0.5b (800MB Q4_K_M) — tap to load when models/ present")
-                    Button(onClick = {}) { Text("Load GGUF") }
-                }}
-
-                Text("Next: Day 3-4 wire Rust cdylib (kai_load_gguf) via cargo-ndk", style = MaterialTheme.typography.bodySmall)
+            // Input row
+            Row(Modifier.fillMaxWidth().padding(8.dp).background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Talk with Kai recursively…") },
+                    singleLine = true
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = { vm.send(input); input = "" }, enabled = input.isNotBlank() && !generating) { Text("Send") }
             }
         }
     }

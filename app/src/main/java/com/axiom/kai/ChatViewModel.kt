@@ -1,0 +1,86 @@
+package com.axiom.kai
+
+import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.abs
+
+class ChatViewModel : ViewModel() {
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+
+    private val _model = MutableStateFlow("qwen2.5:0.5b")
+    val model: StateFlow<String> = _model.asStateFlow()
+
+    private val _isGenerating = MutableStateFlow(false)
+    val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
+
+    private var recursionDepth = 0
+
+    fun setModel(m: String) { _model.value = m }
+
+    fun send(userText: String) {
+        if (userText.isBlank() || _isGenerating.value) return
+        val curModel = _model.value
+        _messages.value = _messages.value + ChatMessage(role = Role.USER, text = userText, model = curModel)
+        _isGenerating.value = true
+
+        // Estimate stubs — later replace with real tokenizer + worldgraph
+        val curvature = estimateCurvature(userText)
+        val surprise = estimateSurprise(userText, curvature)
+        val kl = estimateKL(userText)
+        val vfe = safeVFE(surprise, kl)
+        val baseTemp = 0.85f
+        val temp = safeTemp(baseTemp, curvature, 0.4f)
+
+        val kaiText = safeGenerate(userText, temp, vfe)
+        _messages.value = _messages.value + ChatMessage(role = Role.KAI, text = kaiText, vfe = vfe, curvature = curvature, temp = temp, model = curModel)
+
+        // Recursive self-prompt — Kai talking to Kai'
+        if (vfe > 3.0f && recursionDepth < 2) {
+            recursionDepth++
+            val selfPrompt = "What would reduce VFE about: \"$userText\"? (curvature $curvature)"
+            val selfVfe = safeVFE(surprise * 0.7f, kl * 0.8f)
+            val selfTemp = safeTemp(temp, curvature * 0.8f, 0.35f)
+            val selfText = safeGenerate(selfPrompt, selfTemp, selfVfe)
+            _messages.value = _messages.value + ChatMessage(role = Role.KAI_RECURSIVE, text = "↻ $selfText", vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp, model = curModel)
+        } else {
+            recursionDepth = 0
+        }
+        _isGenerating.value = false
+    }
+
+    fun promoteRecursive(msg: ChatMessage) {
+        // Use ghost as next user prompt
+        val stripped = msg.text.removePrefix("↻ ").take(400)
+        send(stripped)
+    }
+
+    fun clear() { _messages.value = emptyList(); recursionDepth = 0 }
+
+    // ---- stubs that become real kai-fusion later ----
+
+    private fun estimateCurvature(text: String): Float {
+        // hash distance vs last 3 messages → 0..1
+        val last = _messages.value.takeLast(3).joinToString(" ") { it.text.take(20) }
+        if (last.isEmpty()) return 0.45f
+        val h = abs(text.hashCode() - last.hashCode()) % 1000 / 1000f
+        return (0.2f + h * 0.6f).coerceIn(0f, 1f)
+    }
+    private fun estimateSurprise(text: String, c: Float): Float {
+        // length + curvature
+        return (text.length / 120f + c * 1.5f + 0.5f).coerceIn(0.5f, 5f)
+    }
+    private fun estimateKL(text: String): Float {
+        // stub: distance to attractor prior (later 173 vectors)
+        return (abs(text.hashCode() % 100) / 100f * 0.8f + 0.2f)
+    }
+    private fun safeVFE(s: Float, k: Float): Float = try { KaiBridge.calculateVFE(s,k) } catch (_: Exception) { KaiBridge.calculateVFEFallback(s,k) }
+    private fun safeTemp(t: Float, c: Float, a: Float): Float = try { KaiBridge.curvatureToTemp(t,c,a) } catch (_: Exception) { KaiBridge.curvatureToTempFallback(t,c,a) }
+    private fun safeGenerate(p: String, t: Float, v: Float): String = try { KaiBridge.generate(p,t,v) } catch (_: Exception) {
+        // Kotlin fallback template
+        if (v > 3) "[Kai VFE ${"%.1f".format(v)} T${"%.2f".format(t)}] \"$p\" — novel. What prior minimizes KL here? (VFE→${"%.1f".format(v*0.8)})"
+        else "[Kai VFE ${"%.1f".format(v)}] \"$p\" — in groove. Next: assert_eq!(kai_calculate_vfe(s,kl), s+kl)"
+    }
+}

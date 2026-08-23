@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kai-Android</string>
+    <string name="hint">Talk with Kai recursively…</string>
+    <string name="send">Send</string>
+    <string name="clear">Clear</string>
+    <string name="use_prompt">Use as prompt</string>
+</resources>
