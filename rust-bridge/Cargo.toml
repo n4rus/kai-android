@@ -1,0 +1,18 @@
+[package]
+name = "kai-bridge"
+version = "0.1.0"
+edition = "2021"
+description = "Kai Fusion Rust bridge for Android — exposes kai_load_gguf, calculate_vfe, g_ij to JNI"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Reuse kai-fusion types when ready — for now stub with no heavy deps
+# kai-fusion = { path = "../../rust/kai-fusion" }
+# For VFE stub we keep it dependency-free; wire real kai-core later
+
+[profile.release]
+lto = true
+opt-level = 3
+panic = "abort"
