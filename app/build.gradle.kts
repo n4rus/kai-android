@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -29,10 +32,10 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreProps = java.util.Properties()
+            val keystoreProps = Properties()
             val ksFile = rootProject.file("keystore.properties")
             if (ksFile.exists()) {
-                keystoreProps.load(java.io.FileInputStream(ksFile))
+                FileInputStream(ksFile).use { keystoreProps.load(it) }
                 storeFile = file(keystoreProps["storeFile"] as String)
                 storePassword = keystoreProps["storePassword"] as String
                 keyAlias = keystoreProps["keyAlias"] as String
@@ -76,9 +79,11 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.compose.ui:ui:1.6.2")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.6.2")
     implementation("androidx.compose.material3:material3:1.2.0")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     // LLM: Rust cdylib will be packaged via jniLibs; no extra dep needed
     testImplementation("junit:junit:4.13.2")
