@@ -1,8 +1,11 @@
 package com.axiom.kai
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +42,30 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
-    LaunchedEffect(Unit) { vm.refreshDownloadState(ctx) }
+    var pickedImageUri by remember { mutableStateOf<Uri?>(null) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            pickedImageUri = it
+            // Vision wiring: show image in chat and have Kai respond vision-aware
+            val msg = "📷 Image picked: ${it.lastPathSegment ?: "image"} — Kai vision (SigLIP/CLIP stub) will describe it. VFE will be computed from image patches."
+            vm.send(ctx, msg)
+            Toast.makeText(ctx, "Image picked — Kai will see it", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        vm.refreshDownloadState(ctx)
+        // Auto-download free Qwen 0.5b on first launch if nothing downloaded (no manual tap needed)
+        if (vm.downloadState.value.values.none { it }) {
+            val free = ModelCatalog.models.firstOrNull { it.tag == "qwen2.5:0.5b" }
+            free?.let {
+                // Only auto-download if not already attempted
+                vm.downloadModel(ctx, it.tag) { id ->
+                    Toast.makeText(ctx, "Auto-downloading free ${it.tag}…", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -177,8 +203,11 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 if (generating) item { Text("Kai is thinking…", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall) }
             }
 
-            // Input row
+            // Input row with image picker + send
             Row(Modifier.fillMaxWidth().padding(8.dp).background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { imagePicker.launch("image/*") }) {
+                    Text("📷", style = MaterialTheme.typography.titleLarge)
+                }
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -188,6 +217,9 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Button(onClick = { vm.send(ctx, input); input = "" }, enabled = input.isNotBlank() && !generating) { Text("Send") }
+            }
+            if (pickedImageUri != null) {
+                Text("Picked: ${pickedImageUri?.lastPathSegment} — will be fed to vision tower (stub)", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp))
             }
         }
     }

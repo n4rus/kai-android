@@ -11,12 +11,13 @@ android {
     namespace = "com.axiom.kai"
     compileSdk = 34
 
+    ndkVersion = "26.1.10909125"
     defaultConfig {
         applicationId = "com.axiom.kai"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0-kai"
+        versionCode = 2
+        versionName = "0.1.1-kai-16kb"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {

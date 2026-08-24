@@ -38,19 +38,68 @@ class ChatViewModel : ViewModel() {
         _downloadState.value = ModelCatalog.models.associate { it.tag to mgr.isDownloaded(it) }
     }
 
+    // Download progress state
+    private val _downloadProgress = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val downloadProgress: StateFlow<Map<String, Int>> = _downloadProgress.asStateFlow()
+
     fun downloadModel(ctx: Context, tag: String, onEnqueue: (Long) -> Unit = {}) {
         val entry = ModelCatalog.byTag(tag) ?: return
         val mgr = ModelManager(ctx)
         if (mgr.isDownloaded(entry)) {
-            // already there — try load
             viewModelScope.launch { mgr.loadInRust(entry) }
             refreshDownloadState(ctx)
             return
         }
-        val id = mgr.download(entry)
-        onEnqueue(id)
-        // optimistic: mark as downloading (false until finished)
-        refreshDownloadState(ctx)
+        // Try DownloadManager (external dir, SecurityException-safe), then poll+copy+load
+        val id = try { mgr.download(entry) } catch (t: Throwable) {
+            android.util.Log.e("ChatViewModel", "download() threw: $t")
+            -1L
+        }
+        if (id > 0) {
+            onEnqueue(id)
+            // Poll DownloadManager in background; on success copy external→internal and load
+            viewModelScope.launch {
+                val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                val q = android.app.DownloadManager.Query().setFilterById(id)
+                while (true) {
+                    dm.query(q)?.use { c ->
+                        if (c.moveToFirst()) {
+                            val status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS))
+                            if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                                mgr.syncExternalToInternal(entry)
+                                mgr.loadInRust(entry)
+                                refreshDownloadState(ctx)
+                                return@launch
+                            }
+                            if (status == android.app.DownloadManager.STATUS_FAILED) {
+                                // Fallback to direct download
+                                directFallback(ctx, entry)
+                                return@launch
+                            }
+                        }
+                    } ?: run { directFallback(ctx, entry); return@launch }
+                    kotlinx.coroutines.delay(2000)
+                }
+            }
+        } else {
+            // DownloadManager unavailable/rejected — direct download with progress
+            directFallback(ctx, entry)
+        }
+    }
+
+    private fun directFallback(ctx: Context, entry: ModelEntry) {
+        viewModelScope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                ModelManager(ctx).downloadDirect(entry) { pct ->
+                    _downloadProgress.value = _downloadProgress.value + (entry.tag to pct)
+                }
+            }
+            if (ok) {
+                ModelManager(ctx).loadInRust(entry)
+                _downloadProgress.value = _downloadProgress.value - entry.tag
+            }
+            refreshDownloadState(ctx)
+        }
     }
 
     fun tryLoadCurrentModel(ctx: Context): Int {
