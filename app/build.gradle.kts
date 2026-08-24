@@ -36,7 +36,7 @@ android {
             val ksFile = rootProject.file("keystore.properties")
             if (ksFile.exists()) {
                 FileInputStream(ksFile).use { keystoreProps.load(it) }
-                storeFile = file(keystoreProps["storeFile"] as String)
+                storeFile = rootProject.file(keystoreProps["storeFile"] as String)
                 storePassword = keystoreProps["storePassword"] as String
                 keyAlias = keystoreProps["keyAlias"] as String
                 keyPassword = keystoreProps["keyPassword"] as String
