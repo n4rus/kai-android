@@ -75,7 +75,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                                         else Toast.makeText(ctx, "v2 $4.99 — open Store listing to buy", Toast.LENGTH_LONG).show()
                                                     }
                                                 }
-                                            } catch (_: Exception) {
+                                            } catch (_: Throwable) {
                                                 Toast.makeText(ctx, "v2 $4.99 — 30 days, no subscription", Toast.LENGTH_LONG).show()
                                             }
                                         } else {
@@ -140,7 +140,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                             Column(Modifier.padding(16.dp)) {
                                 Text("Talk with me recursively, but with Kai instead.", style = MaterialTheme.typography.titleMedium)
                                 Text("You → Kai (VFE meter updates) → Kai' (ghost ↻, VFE>3) → tap ghost to recurse. Fully offline, GGUF in filesDir/models/.", style = MaterialTheme.typography.bodySmall)
-                                val ver = try { KaiBridge.version() } catch (_: Exception) { "kai-bridge stub" }
+                                val ver = try { KaiBridge.version() } catch (_: Throwable) { "kai-bridge stub" }
                                 Text(ver, style = MaterialTheme.typography.bodySmall)
                             }
                         }

@@ -75,9 +75,9 @@ class ChatViewModel : ViewModel() {
                 val ver = parts[3]
                 if (ok) "$name ${mb}MB v$ver ✓" else "$name invalid ✗"
             } else info
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             val mgr = ModelManager(ctx)
-            val dl = mgr.downloadedModels().joinToString { it.tag }
+            val dl = try { mgr.downloadedModels().joinToString { it.tag } } catch (_: Throwable) { "" }
             if (dl.isNotEmpty()) "downloaded: $dl (tap picker to load)" else "no GGUF — picker ⬇ 0.5b"
         }
     }
@@ -150,9 +150,9 @@ class ChatViewModel : ViewModel() {
         // stub: distance to attractor prior (later 173 vectors)
         return (abs(text.hashCode() % 100) / 100f * 0.8f + 0.2f)
     }
-    private fun safeVFE(s: Float, k: Float): Float = try { KaiBridge.calculateVFE(s,k) } catch (_: Exception) { KaiBridge.calculateVFEFallback(s,k) }
-    private fun safeTemp(t: Float, c: Float, a: Float): Float = try { KaiBridge.curvatureToTemp(t,c,a) } catch (_: Exception) { KaiBridge.curvatureToTempFallback(t,c,a) }
-    private fun safeGenerate(p: String, t: Float, v: Float): String = try { KaiBridge.generate(p,t,v) } catch (_: Exception) {
+    private fun safeVFE(s: Float, k: Float): Float = try { KaiBridge.calculateVFE(s,k) } catch (_: Throwable) { KaiBridge.calculateVFEFallback(s,k) }
+    private fun safeTemp(t: Float, c: Float, a: Float): Float = try { KaiBridge.curvatureToTemp(t,c,a) } catch (_: Throwable) { KaiBridge.curvatureToTempFallback(t,c,a) }
+    private fun safeGenerate(p: String, t: Float, v: Float): String = try { KaiBridge.generate(p,t,v) } catch (_: Throwable) {
         // Kotlin fallback template
         if (v > 3) "[Kai VFE ${"%.1f".format(v)} T${"%.2f".format(t)}] \"$p\" — novel. What prior minimizes KL here? (VFE→${"%.1f".format(v*0.8)})"
         else "[Kai VFE ${"%.1f".format(v)}] \"$p\" — in groove. Next: assert_eq!(kai_calculate_vfe(s,kl), s+kl)"
