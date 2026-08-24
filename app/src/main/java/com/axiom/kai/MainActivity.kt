@@ -166,7 +166,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                 if (m.vfe != null) Text("VFE %.1f · g %.2f · T %.2f · %s".format(m.vfe, m.curvature?:0f, m.temp?:0f, m.model), style = MaterialTheme.typography.labelSmall)
                                 if (isGhost) {
                                     Spacer(Modifier.height(6.dp))
-                                    OutlinedButton(onClick = { vm.promoteRecursive(m) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                                    OutlinedButton(onClick = { vm.promoteRecursive(ctx, m) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
                                         Text("Use as prompt", style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
@@ -187,7 +187,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                     singleLine = true
                 )
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = { vm.send(input); input = "" }, enabled = input.isNotBlank() && !generating) { Text("Send") }
+                Button(onClick = { vm.send(ctx, input); input = "" }, enabled = input.isNotBlank() && !generating) { Text("Send") }
             }
         }
     }

@@ -94,13 +94,12 @@ class ChatViewModel : ViewModel() {
         return tag != "qwen2.5:0.5b"
     }
 
-    fun send(userText: String) {
+    fun send(ctx: Context, userText: String) {
         if (userText.isBlank() || _isGenerating.value) return
         val curModel = _model.value
         _messages.value = _messages.value + ChatMessage(role = Role.USER, text = userText, model = curModel)
         _isGenerating.value = true
 
-        // Estimate stubs — later replace with real tokenizer + worldgraph
         val curvature = estimateCurvature(userText)
         val surprise = estimateSurprise(userText, curvature)
         val kl = estimateKL(userText)
@@ -108,27 +107,52 @@ class ChatViewModel : ViewModel() {
         val baseTemp = 0.85f
         val temp = safeTemp(baseTemp, curvature, 0.4f)
 
-        val kaiText = safeGenerate(userText, temp, vfe)
-        _messages.value = _messages.value + ChatMessage(role = Role.KAI, text = kaiText, vfe = vfe, curvature = curvature, temp = temp, model = curModel)
+        // Create empty Kai message and stream into it (real streaming UX)
+        val kaiId = java.util.UUID.randomUUID().toString()
+        val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = "", vfe = vfe, curvature = curvature, temp = temp, model = curModel)
+        _messages.value = _messages.value + kaiMsg
 
-        // Recursive self-prompt — Kai talking to Kai'
-        if (vfe > 3.0f && recursionDepth < 2) {
-            recursionDepth++
-            val selfPrompt = "What would reduce VFE about: \"$userText\"? (curvature $curvature)"
-            val selfVfe = safeVFE(surprise * 0.7f, kl * 0.8f)
-            val selfTemp = safeTemp(temp, curvature * 0.8f, 0.35f)
-            val selfText = safeGenerate(selfPrompt, selfTemp, selfVfe)
-            _messages.value = _messages.value + ChatMessage(role = Role.KAI_RECURSIVE, text = "↻ $selfText", vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp, model = curModel)
-        } else {
-            recursionDepth = 0
+        viewModelScope.launch {
+            val streamer = StreamingGenerator(ctx)
+            // Stream main answer
+            streamer.stream(userText, temp, vfe,
+                onToken = { tok ->
+                    _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + tok) else it }
+                },
+                onDone = {
+                    // Recursive self-prompt — Kai talking to Kai' (also streamed)
+                    if (vfe > 3.0f && recursionDepth < 2) {
+                        recursionDepth++
+                        val selfPrompt = "What would reduce VFE about: \"$userText\"? (curvature $curvature)"
+                        val selfVfe = safeVFE(surprise * 0.7f, kl * 0.8f)
+                        val selfTemp = safeTemp(temp, curvature * 0.8f, 0.35f)
+                        val ghostId = java.util.UUID.randomUUID().toString()
+                        val ghostMsg = ChatMessage(id = ghostId, role = Role.KAI_RECURSIVE, text = "", vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp, model = curModel)
+                        _messages.value = _messages.value + ghostMsg
+                        viewModelScope.launch {
+                            streamer.stream(selfPrompt, selfTemp, selfVfe,
+                                onToken = { t2 ->
+                                    _messages.value = _messages.value.map { if (it.id == ghostId) it.copy(text = if (it.text.isEmpty()) "↻ $t2" else it.text + t2) else it }
+                                },
+                                onDone = { _isGenerating.value = false }
+                            )
+                        }
+                    } else {
+                        recursionDepth = 0
+                        _isGenerating.value = false
+                    }
+                }
+            )
+            // If not recursive, isGenerating will be set false in onDone above; for non-recursive case we need to set it there too
+            if (vfe <= 3.0f || recursionDepth == 0) {
+                // onDone for non-recursive already sets false, but ensure
+            }
         }
-        _isGenerating.value = false
     }
 
-    fun promoteRecursive(msg: ChatMessage) {
-        // Use ghost as next user prompt
+    fun promoteRecursive(ctx: Context, msg: ChatMessage) {
         val stripped = msg.text.removePrefix("↻ ").take(400)
-        send(stripped)
+        send(ctx, stripped)
     }
 
     fun clear() { _messages.value = emptyList(); recursionDepth = 0 }
