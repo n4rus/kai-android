@@ -22,3 +22,5 @@ Thumbs.db
 # Keep
 !README.md
 !LICENSE
+keystore.properties
+kai-upload.jks
