@@ -73,7 +73,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            // Meters row — VFE + curvature
+            // Meters row — VFE + curvature + real GGUF label
             Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Card(Modifier.weight(1f)) {
                     Column(Modifier.padding(8.dp)) {
@@ -81,6 +81,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                         val v = lastKai?.vfe ?: 2.1f
                         LinearProgressIndicator(progress = (v/5f).coerceIn(0f,1f), modifier = Modifier.fillMaxWidth())
                         Text("VFE %.1f (surprise+KL) — %s".format(v, if(v>3)"explore" else "consolidate"), style = MaterialTheme.typography.bodySmall)
+                        val ggufLabel = vm.lastGgufLabel(ctx)
+                        Text(ggufLabel, style = MaterialTheme.typography.labelSmall, color = if(ggufLabel.contains("✓")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                     }
                 }
                 Card(Modifier.weight(1f)) {

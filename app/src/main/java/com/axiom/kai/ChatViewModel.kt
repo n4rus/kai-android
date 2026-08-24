@@ -55,7 +55,31 @@ class ChatViewModel : ViewModel() {
 
     fun tryLoadCurrentModel(ctx: Context): Int {
         val entry = ModelCatalog.byTag(_model.value) ?: return -1
-        return ModelManager(ctx).loadInRust(entry)
+        val r = ModelManager(ctx).loadInRust(entry)
+        // refresh info after load
+        try {
+            val info = KaiBridge.lastGgufInfo()
+            // info is "path|size|is_gguf|version" — VFE meter will show it via next message
+        } catch (_: Exception) {}
+        return r
+    }
+
+    fun lastGgufLabel(ctx: Context): String {
+        return try {
+            val info = KaiBridge.lastGgufInfo() // path|size|is_gguf|version
+            val parts = info.split("|")
+            if (parts.size >= 4) {
+                val name = java.io.File(parts[0]).name
+                val mb = parts[1].toLongOrNull()?.let { it/1024/1024 } ?: 0
+                val ok = parts[2].toBoolean()
+                val ver = parts[3]
+                if (ok) "$name ${mb}MB v$ver ✓" else "$name invalid ✗"
+            } else info
+        } catch (_: Exception) {
+            val mgr = ModelManager(ctx)
+            val dl = mgr.downloadedModels().joinToString { it.tag }
+            if (dl.isNotEmpty()) "downloaded: $dl (tap picker to load)" else "no GGUF — picker ⬇ 0.5b"
+        }
     }
 
     fun send(userText: String) {

@@ -11,6 +11,7 @@ extern "C" {
     float kai_calculate_vfe(float surprise, float kl);
     float kai_curvature_to_temp(float baseTemp, float curvature, float alpha);
     const char* kai_version();
+    const char* kai_last_gguf_info();
     char* kai_generate(const char* prompt, float temp, float vfe);
     void kai_free_string(char* s);
 }
@@ -39,6 +40,15 @@ Java_com_axiom_kai_KaiBridge_loadGguf(JNIEnv* env, jobject, jstring path) {
     env->ReleaseStringUTFChars(path, c);
     LOGI("kai_load_gguf -> %d", r);
     return r;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_axiom_kai_KaiBridge_lastGgufInfo(JNIEnv* env, jobject) {
+    const char* info = kai_last_gguf_info();
+    if (!info) return env->NewStringUTF("no GGUF");
+    jstring j = env->NewStringUTF(info);
+    kai_free_string((char*)info);
+    return j;
 }
 
 extern "C" JNIEXPORT jstring JNICALL

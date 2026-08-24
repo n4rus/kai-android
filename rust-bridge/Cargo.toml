@@ -8,9 +8,10 @@ description = "Kai Fusion Rust bridge for Android — exposes kai_load_gguf, cal
 crate-type = ["cdylib"]
 
 [dependencies]
-# Reuse kai-fusion types when ready — for now stub with no heavy deps
+# Real GGUF: mmap + header validation (no heavy inference yet — VFE/physics wired)
+memmap2 = "0.9"
+# For future real inference: uncomment when wiring kai-fusion loader
 # kai-fusion = { path = "../../rust/kai-fusion" }
-# For VFE stub we keep it dependency-free; wire real kai-core later
 
 [profile.release]
 lto = true

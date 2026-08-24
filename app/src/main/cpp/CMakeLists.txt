@@ -14,8 +14,12 @@ target_link_libraries(kai_jni
     android
 )
 
-# If you have a prebuilt Rust .so, uncomment and point to it:
-# add_library(kai_bridge SHARED IMPORTED)
-# set_target_properties(kai_bridge PROPERTIES IMPORTED_LOCATION
-#     ${CMAKE_SOURCE_DIR}/../../../../rust-bridge/target/aarch64-linux-android/release/libkai_bridge.so)
-# target_link_libraries(kai_jni kai_bridge)
+# Rust cdylib — auto-link if built via cargo-ndk
+# The .so is at rust-bridge/target/aarch64-linux-android/release/libkai_bridge.so
+# If not present, JNI still builds (Kotlin fallbacks to stub)
+if(EXISTS ${CMAKE_SOURCE_DIR}/../../../../rust-bridge/target/aarch64-linux-android/release/libkai_bridge.so)
+    add_library(kai_bridge SHARED IMPORTED)
+    set_target_properties(kai_bridge PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../../../../rust-bridge/target/aarch64-linux-android/release/libkai_bridge.so)
+    target_link_libraries(kai_jni kai_bridge)
+endif()
