@@ -13,7 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
 import com.axiom.kai.ui.theme.KaiTheme
 
 class MainActivity : ComponentActivity() {
@@ -26,13 +29,17 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KaiScreen(vm: ChatViewModel = viewModel()) {
+    val ctx = LocalContext.current
     val messages by vm.messages.collectAsState()
     val model by vm.model.collectAsState()
     val generating by vm.isGenerating.collectAsState()
+    val downloadState by vm.downloadState.collectAsState()
     var input by remember { mutableStateOf("") }
     var pickerExpanded by remember { mutableStateOf(false) }
-    val models = listOf("qwen2.5:0.5b", "qwen2.5:7b", "llama3:8b", "gemma2:9b")
+    val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
+
+    LaunchedEffect(Unit) { vm.refreshDownloadState(ctx) }
 
     Scaffold(
         topBar = {
@@ -42,8 +49,21 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                     Box {
                         TextButton(onClick = { pickerExpanded = true }) { Text(model) }
                         DropdownMenu(expanded = pickerExpanded, onDismissRequest = { pickerExpanded = false }) {
-                            models.forEach { m ->
-                                DropdownMenuItem(text = { Text(m) }, onClick = { vm.setModel(m); pickerExpanded = false })
+                            models.forEach { e ->
+                                val downloaded = downloadState[e.tag] == true
+                                DropdownMenuItem(
+                                    text = { Text("${e.tag} ${if(downloaded) "✓" else "⬇ ${e.sizeMb}MB"}") },
+                                    onClick = {
+                                        vm.setModel(e.tag)
+                                        if (!downloaded) {
+                                            vm.downloadModel(ctx, e.tag) { id -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
+                                        } else {
+                                            val r = vm.tryLoadCurrentModel(ctx)
+                                            Toast.makeText(ctx, if(r==0) "Loaded ${e.tag}" else "Load stub (VFE-only)", Toast.LENGTH_SHORT).show()
+                                        }
+                                        pickerExpanded = false
+                                    }
+                                )
                             }
                         }
                     }

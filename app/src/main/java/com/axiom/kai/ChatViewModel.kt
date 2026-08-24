@@ -1,9 +1,12 @@
 package com.axiom.kai
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 class ChatViewModel : ViewModel() {
@@ -18,7 +21,42 @@ class ChatViewModel : ViewModel() {
 
     private var recursionDepth = 0
 
-    fun setModel(m: String) { _model.value = m }
+    // GGUF download state
+    private val _downloadState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val downloadState: StateFlow<Map<String, Boolean>> = _downloadState.asStateFlow()
+
+    fun setModel(m: String) {
+        _model.value = m
+        // Try to load local GGUF for this model (best effort)
+        ModelCatalog.byTag(m)?.let { entry ->
+            // check in viewModelScope
+        }
+    }
+
+    fun refreshDownloadState(ctx: Context) {
+        val mgr = ModelManager(ctx)
+        _downloadState.value = ModelCatalog.models.associate { it.tag to mgr.isDownloaded(it) }
+    }
+
+    fun downloadModel(ctx: Context, tag: String, onEnqueue: (Long) -> Unit = {}) {
+        val entry = ModelCatalog.byTag(tag) ?: return
+        val mgr = ModelManager(ctx)
+        if (mgr.isDownloaded(entry)) {
+            // already there — try load
+            viewModelScope.launch { mgr.loadInRust(entry) }
+            refreshDownloadState(ctx)
+            return
+        }
+        val id = mgr.download(entry)
+        onEnqueue(id)
+        // optimistic: mark as downloading (false until finished)
+        refreshDownloadState(ctx)
+    }
+
+    fun tryLoadCurrentModel(ctx: Context): Int {
+        val entry = ModelCatalog.byTag(_model.value) ?: return -1
+        return ModelManager(ctx).loadInRust(entry)
+    }
 
     fun send(userText: String) {
         if (userText.isBlank() || _isGenerating.value) return
