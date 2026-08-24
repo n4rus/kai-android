@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,7 +43,7 @@ private val SUGGESTIONS = listOf(
     "Summarize this topic for a beginner"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun KaiScreen(vm: ChatViewModel = viewModel()) {
     val ctx = LocalContext.current
@@ -68,6 +70,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
 
     LaunchedEffect(Unit) {
         vm.refreshDownloadState(ctx)
+        // Auto-recover: if GGUF already on disk (previous download), sync + load it silently
+        vm.autoLoadIfAvailable(ctx)
         if (vm.downloadState.value.values.none { it }) {
             ModelCatalog.models.firstOrNull { it.tag == "qwen2.5:0.5b" }?.let {
                 vm.downloadModel(ctx, it.tag) { _ ->
@@ -205,6 +209,15 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                 }
                             ),
                             modifier = Modifier.widthIn(max = 340.dp)
+                                .combinedClickable(
+                                    onClick = {},
+                                    onLongClick = {
+                                        // Copy message to clipboard
+                                        val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        cm.setPrimaryClip(android.content.ClipData.newPlainText("kai", m.text))
+                                        Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
                         ) {
                             Column(Modifier.padding(12.dp)) {
                                 Text(m.text.ifEmpty { if (isGhost) "↻ thinking…" else "…" }, style = MaterialTheme.typography.bodyMedium)

@@ -38,6 +38,18 @@ class ChatViewModel : ViewModel() {
         _downloadState.value = ModelCatalog.models.associate { it.tag to mgr.isDownloaded(it) }
     }
 
+    /** Launch-time auto-recovery: if current model's GGUF is anywhere on disk, sync + load it (fixes restart-during-download) */
+    fun autoLoadIfAvailable(ctx: Context) {
+        val entry = ModelCatalog.byTag(_model.value) ?: return
+        val mgr = ModelManager(ctx)
+        if (mgr.isDownloaded(entry)) {
+            viewModelScope.launch {
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { mgr.autoRecoverAndLoad(entry) }
+                if (r == 0) refreshDownloadState(ctx)
+            }
+        }
+    }
+
     // Download progress state
     private val _downloadProgress = MutableStateFlow<Map<String, Int>>(emptyMap())
     val downloadProgress: StateFlow<Map<String, Int>> = _downloadProgress.asStateFlow()

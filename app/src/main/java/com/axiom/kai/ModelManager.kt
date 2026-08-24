@@ -48,7 +48,36 @@ class ModelManager(private val ctx: Context) {
         if (internal.exists()) return internal
         val external = File(extDir, entry.fileName)
         if (external.exists()) return external
+        // DownloadManager duplicate-rename fallback: "name-1.gguf", "name-2.gguf"…
+        val parent = external.parentFile
+        if (parent != null) {
+            val base = entry.fileName.removeSuffix(".gguf")
+            val dup = parent.listFiles { f -> f.name.startsWith("$base-") && f.name.endsWith(".gguf") }
+                ?.maxByOrNull { it.length() }
+            if (dup != null && dup.length() > 1024*1024) return dup
+        }
         return internal // default target for new downloads
+    }
+
+    /** Copy external GGUF (incl. -1 duplicates) into filesDir/models so Rust mmap has a stable path */
+    fun syncExternalToInternal(entry: ModelEntry): Boolean {
+        val src = localFile(entry) // may resolve to external or duplicate
+        val internal = File(modelsDir, entry.fileName)
+        if (!src.exists() || src.length() < 1024*1024) return false
+        if (src.absolutePath == internal.absolutePath) return true
+        if (internal.exists() && internal.length() == src.length()) return true
+        return try {
+            src.copyTo(internal, overwrite = true)
+            true
+        } catch (_: Exception) { false }
+    }
+
+    /** Launch-time auto-recovery: if any GGUF for this entry exists anywhere, sync + load. Returns load result or -1 */
+    fun autoRecoverAndLoad(entry: ModelEntry): Int {
+        return if (isDownloaded(entry)) {
+            syncExternalToInternal(entry)
+            loadInRust(entry)
+        } else -1
     }
 
     fun isDownloaded(entry: ModelEntry): Boolean = localFile(entry).exists() && localFile(entry).length() > 1024*1024
@@ -118,18 +147,6 @@ class ModelManager(private val ctx: Context) {
             tmp.delete()
             false
         }
-    }
-
-    /** Called after DownloadManager finishes — copy external → internal for Rust mmap */
-    fun syncExternalToInternal(entry: ModelEntry): Boolean {
-        val external = File(extDir, entry.fileName)
-        val internal = File(modelsDir, entry.fileName)
-        if (!external.exists() || external.length() < 1024*1024) return false
-        if (internal.exists() && internal.length() == external.length()) return true
-        return try {
-            external.copyTo(internal, overwrite = true)
-            true
-        } catch (_: Exception) { false }
     }
 
     fun loadInRust(entry: ModelEntry): Int {
