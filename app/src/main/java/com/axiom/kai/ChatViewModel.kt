@@ -64,8 +64,13 @@ class ChatViewModel : ViewModel() {
         return r
     }
 
+    // Cache last GGUF label to avoid spamming JNI on every recomposition
+    private var cachedLabel: String? = null
+    private var cachedLabelTime: Long = 0
     fun lastGgufLabel(ctx: Context): String {
-        return try {
+        // Return cached if <2s old
+        if (cachedLabel != null && System.currentTimeMillis() - cachedLabelTime < 2000) return cachedLabel!!
+        val label = try {
             val info = KaiBridge.lastGgufInfo() // path|size|is_gguf|version
             val parts = info.split("|")
             if (parts.size >= 4) {
@@ -80,6 +85,9 @@ class ChatViewModel : ViewModel() {
             val dl = try { mgr.downloadedModels().joinToString { it.tag } } catch (_: Throwable) { "" }
             if (dl.isNotEmpty()) "downloaded: $dl (tap picker to load)" else "no GGUF — picker ⬇ 0.5b"
         }
+        cachedLabel = label
+        cachedLabelTime = System.currentTimeMillis()
+        return label
     }
 
     // Billing — v1 free, v2/v3 $4.99 per period
