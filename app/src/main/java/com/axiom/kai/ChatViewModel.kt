@@ -82,6 +82,18 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    // Billing — v1 free, v2/v3 $4.99 per period
+    fun billingHasV2(ctx: Context): Boolean = BillingManager(ctx).hasV2()
+    fun billingHasV3(ctx: Context): Boolean = BillingManager(ctx).hasV3()
+    fun billingDaysLeft(ctx: Context, v2: Boolean = true): Long {
+        val bm = BillingManager(ctx)
+        return if (v2) bm.daysLeftV2() else bm.daysLeftV3()
+    }
+    fun requiresV2ForModel(tag: String): Boolean {
+        // 0.5b is v1 free, 7b/8b/9b are v2
+        return tag != "qwen2.5:0.5b"
+    }
+
     fun send(userText: String) {
         if (userText.isBlank() || _isGenerating.value) return
         val curModel = _model.value

@@ -51,20 +51,56 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                         DropdownMenu(expanded = pickerExpanded, onDismissRequest = { pickerExpanded = false }) {
                             models.forEach { e ->
                                 val downloaded = downloadState[e.tag] == true
+                                val needsV2 = vm.requiresV2ForModel(e.tag)
+                                val hasV2 = vm.billingHasV2(ctx)
+                                val locked = needsV2 && !hasV2
                                 DropdownMenuItem(
-                                    text = { Text("${e.tag} ${if(downloaded) "✓" else "⬇ ${e.sizeMb}MB"}") },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("${e.tag} ${if(downloaded) "✓" else "⬇ ${e.sizeMb}MB"}")
+                                            if (locked) {
+                                                Spacer(Modifier.width(6.dp))
+                                                Badge { Text("v2 $4.99") }
+                                            }
+                                        }
+                                    },
                                     onClick = {
-                                        vm.setModel(e.tag)
-                                        if (!downloaded) {
-                                            vm.downloadModel(ctx, e.tag) { id -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
+                                        if (locked) {
+                                            // Launch Play Billing for v2 30d
+                                            try {
+                                                BillingManager(ctx).apply {
+                                                    connect {
+                                                        val activity = ctx as? android.app.Activity
+                                                        if (activity != null) launchPurchase(activity, BillingSkus.V2_30D)
+                                                        else Toast.makeText(ctx, "v2 $4.99 — open Store listing to buy", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            } catch (_: Exception) {
+                                                Toast.makeText(ctx, "v2 $4.99 — 30 days, no subscription", Toast.LENGTH_LONG).show()
+                                            }
                                         } else {
-                                            val r = vm.tryLoadCurrentModel(ctx)
-                                            Toast.makeText(ctx, if(r==0) "Loaded ${e.tag}" else "Load stub (VFE-only)", Toast.LENGTH_SHORT).show()
+                                            vm.setModel(e.tag)
+                                            if (!downloaded) {
+                                                vm.downloadModel(ctx, e.tag) { id -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
+                                            } else {
+                                                val r = vm.tryLoadCurrentModel(ctx)
+                                                Toast.makeText(ctx, if(r==0) "Loaded ${e.tag}" else "Load stub (VFE-only)", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                         pickerExpanded = false
                                     }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text(if(vm.billingHasV2(ctx)) "v2 active — ${vm.billingDaysLeft(ctx, true)}d left ✓" else "Unlock v2 30d — $4.99") },
+                                onClick = {
+                                    BillingManager(ctx).connect {
+                                        val activity = ctx as? android.app.Activity
+                                        if (activity != null) BillingManager(ctx).launchPurchase(activity, BillingSkus.V2_30D)
+                                    }
+                                    pickerExpanded = false
+                                }
+                            )
                         }
                     }
                     TextButton(onClick = { vm.clear() }) { Text("Clear") }
