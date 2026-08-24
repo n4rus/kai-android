@@ -61,9 +61,12 @@ class ChatViewModel : ViewModel() {
             viewModelScope.launch {
                 val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
                 val q = android.app.DownloadManager.Query().setFilterById(id)
-                while (true) {
+                var ticks = 0
+                while (ticks < 3600) { // max 2h
+                    var sawRow = false
                     dm.query(q)?.use { c ->
                         if (c.moveToFirst()) {
+                            sawRow = true
                             val status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS))
                             if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
                                 mgr.syncExternalToInternal(entry)
@@ -72,18 +75,34 @@ class ChatViewModel : ViewModel() {
                                 return@launch
                             }
                             if (status == android.app.DownloadManager.STATUS_FAILED) {
-                                // Fallback to direct download
                                 directFallback(ctx, entry)
                                 return@launch
                             }
                         }
-                    } ?: run { directFallback(ctx, entry); return@launch }
+                    }
+                    if (!sawRow) {
+                        // Row gone (cleared/notification dismissed) — check file landed anyway
+                        if (mgr.isDownloaded(entry)) {
+                            mgr.syncExternalToInternal(entry)
+                            mgr.loadInRust(entry)
+                            refreshDownloadState(ctx)
+                            return@launch
+                        }
+                    }
+                    ticks++
                     kotlinx.coroutines.delay(2000)
                 }
             }
         } else {
-            // DownloadManager unavailable/rejected — direct download with progress
             directFallback(ctx, entry)
+        }
+        // Safety net: if file already on disk (previous session downloaded it), just load it
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1500)
+            if (mgr.isDownloaded(entry) && mgr.syncExternalToInternal(entry)) {
+                mgr.loadInRust(entry)
+                refreshDownloadState(ctx)
+            }
         }
     }
 
@@ -147,8 +166,8 @@ class ChatViewModel : ViewModel() {
         return if (v2) bm.daysLeftV2() else bm.daysLeftV3()
     }
     fun requiresV2ForModel(tag: String): Boolean {
-        // 0.5b is v1 free, 7b/8b/9b are v2
-        return tag != "qwen2.5:0.5b"
+        // v1 pricing: ALL MODELS free (qwen, llama, gemma). v2 paywall is program features, not models.
+        return false
     }
 
     fun send(ctx: Context, userText: String) {
