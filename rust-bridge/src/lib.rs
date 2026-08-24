@@ -123,3 +123,85 @@ pub extern "C" fn kai_free_string(s: *mut c_char) {
     if s.is_null() { return; }
     unsafe { let _ = CString::from_raw(s); }
 }
+
+// ---------------------------------------------------------------------------
+// JNI exports — so Kotlin can call Rust directly via kai_bridge (no C++ link needed)
+// This fixes the absolute DT_NEEDED path issue on device (kai_jni → kai_bridge absolute path not found)
+// ---------------------------------------------------------------------------
+use jni::JNIEnv;
+use jni::objects::{JClass, JObject, JString};
+use jni::sys::{jfloat, jint, jstring};
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_version<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+) -> JString<'local> {
+    let s = unsafe { CStr::from_ptr(kai_version()).to_string_lossy().into_owned() };
+    env.new_string(s).unwrap_or_else(|_| env.new_string("kai-bridge 0.3.0").unwrap())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_calculateVFE<'local>(
+    _env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    surprise: jfloat,
+    kl: jfloat,
+) -> jfloat {
+    kai_calculate_vfe(surprise, kl)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_curvatureToTemp<'local>(
+    _env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    base: jfloat,
+    curvature: jfloat,
+    alpha: jfloat,
+) -> jfloat {
+    kai_curvature_to_temp(base, curvature, alpha)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_loadGguf<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    path: JString<'local>,
+) -> jint {
+    let p: String = env.get_string(&path).map(|s| s.into()).unwrap_or_default();
+    let c = match CString::new(p) { Ok(c) => c, Err(_) => return -1 };
+    kai_load_gguf(c.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_lastGgufInfo<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+) -> jstring {
+    let ptr = kai_last_gguf_info();
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    let s = cstr.to_string_lossy().into_owned();
+    unsafe { let _ = CString::from_raw(ptr); }
+    env.new_string(s).map(|j| j.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_generate<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    prompt: JString<'local>,
+    temp: jfloat,
+    vfe: jfloat,
+) -> jstring {
+    let p: String = env.get_string(&prompt).map(|s| s.into()).unwrap_or_default();
+    let c = match CString::new(p) { Ok(c) => c, Err(_) => return std::ptr::null_mut() };
+    let ptr = kai_generate(c.as_ptr(), temp, vfe);
+    if ptr.is_null() { return std::ptr::null_mut(); }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    let s = cstr.to_string_lossy().into_owned();
+    unsafe { let _ = CString::from_raw(ptr); }
+    env.new_string(s).map(|j| j.into_raw()).unwrap_or(std::ptr::null_mut())
+}

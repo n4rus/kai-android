@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # Real GGUF: mmap + header validation (no heavy inference yet — VFE/physics wired)
 memmap2 = "0.9"
+jni = "0.21"
 # For future real inference: uncomment when wiring kai-fusion loader
 # kai-fusion = { path = "../../rust/kai-fusion" }
 

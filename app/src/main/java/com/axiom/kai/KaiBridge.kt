@@ -2,8 +2,24 @@ package com.axiom.kai
 
 object KaiBridge {
     init {
-        try { System.loadLibrary("kai_jni") } catch (e: UnsatisfiedLinkError) { /* stub fallback */ }
-        try { System.loadLibrary("kai_bridge") } catch (_: UnsatisfiedLinkError) {}
+        // Load Rust bridge first — it now also exposes JNI for KaiBridge (no need for kai_jni to link Rust)
+        var ok = false
+        try {
+            System.loadLibrary("kai_bridge")
+            android.util.Log.i("KaiBridge", "kai_bridge loaded OK")
+            ok = true
+        } catch (e: UnsatisfiedLinkError) { android.util.Log.w("KaiBridge", "kai_bridge not loaded: ${e.message}") }
+        try {
+            System.loadLibrary("kai_jni")
+            android.util.Log.i("KaiBridge", "kai_jni loaded OK")
+            ok = true
+        } catch (e: UnsatisfiedLinkError) { android.util.Log.e("KaiBridge", "kai_jni not loaded: ${e.message}") }
+        if (!ok) android.util.Log.w("KaiBridge", "No native libs loaded — using stub fallbacks")
+        // Test call (now safe, will fallback to stub if JNI not found, thanks to Throwable catch in callers)
+        try {
+            val v = version()
+            android.util.Log.i("KaiBridge", "version() = $v")
+        } catch (t: Throwable) { android.util.Log.e("KaiBridge", "version() failed (stub): $t") }
     }
     external fun version(): String
     external fun calculateVFE(surprise: Float, kl: Float): Float

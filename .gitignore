@@ -24,3 +24,4 @@ Thumbs.db
 !LICENSE
 keystore.properties
 kai-upload.jks
+app/src/main/jniLibs/
