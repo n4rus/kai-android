@@ -182,58 +182,220 @@ class ChatViewModel : ViewModel() {
         return false
     }
 
+    // ---- Tier 1: chat persistence ----
+    private var currentChatId: String = java.util.UUID.randomUUID().toString()
+    private val _chatList = MutableStateFlow<List<ChatEntity>>(emptyList())
+    val chatList: StateFlow<List<ChatEntity>> = _chatList.asStateFlow()
+    private val _memoryCount = MutableStateFlow(0)
+    val memoryCount: StateFlow<Int> = _memoryCount.asStateFlow()
+
+    fun initPersistence(ctx: Context) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val db = KaiDb.get(ctx)
+                val chats = db.openHelper.readableDatabase.query("SELECT * FROM chats ORDER BY updatedAt DESC").use { c ->
+                    val list = mutableListOf<ChatEntity>()
+                    while (c.moveToNext()) {
+                        list.add(ChatEntity(
+                            id = c.getString(0), title = c.getString(1), model = c.getString(2),
+                            createdAt = c.getLong(3), updatedAt = c.getLong(4)))
+                    }
+                    list
+                }
+                _chatList.value = chats
+                val chat = chats.firstOrNull()
+                if (chat != null) {
+                    currentChatId = chat.id
+                    _model.value = chat.model
+                    val msgs = db.messageDao().messagesOnce(chat.id)
+                    _messages.value = msgs.map { m ->
+                        ChatMessage(id = m.id, role = when (m.role) { "USER" -> Role.USER; "KAI_RECURSIVE" -> Role.KAI_RECURSIVE; else -> Role.KAI },
+                            text = m.text, vfe = m.vfe, curvature = m.curvature, temp = m.temp, model = m.model, ts = m.ts)
+                    }
+                } else {
+                    createChat(ctx)
+                }
+                _memoryCount.value = db.memoryDao().count()
+            } catch (t: Throwable) {
+                android.util.Log.e("ChatViewModel", "initPersistence failed: $t")
+            }
+        }
+    }
+
+    private suspend fun createChat(ctx: Context) {
+        val db = KaiDb.get(ctx)
+        currentChatId = java.util.UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            db.chatDao().upsert(ChatEntity(id = currentChatId, title = "New chat", model = _model.value, createdAt = now, updatedAt = now))
+        }
+        _messages.value = emptyList()
+        _chatList.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            db.chatDao().chats().let { emptyList<ChatEntity>() } // placeholder; UI reads via refresh
+        }
+        refreshChatList(ctx)
+    }
+
+    private suspend fun refreshChatList(ctx: Context) {
+        val db = KaiDb.get(ctx)
+        val chats = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            db.openHelper.readableDatabase.query("SELECT * FROM chats ORDER BY updatedAt DESC").use { c ->
+                val list = mutableListOf<ChatEntity>()
+                while (c.moveToNext()) {
+                    list.add(ChatEntity(id = c.getString(0), title = c.getString(1), model = c.getString(2),
+                        createdAt = c.getLong(3), updatedAt = c.getLong(4)))
+                }
+                list
+            }
+        }
+        _chatList.value = chats
+    }
+
+    fun switchChat(ctx: Context, chatId: String) {
+        viewModelScope.launch {
+            currentChatId = chatId
+            val db = KaiDb.get(ctx)
+            val msgs = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.messageDao().messagesOnce(chatId) }
+            _messages.value = msgs.map { m ->
+                ChatMessage(id = m.id, role = when (m.role) { "USER" -> Role.USER; "KAI_RECURSIVE" -> Role.KAI_RECURSIVE; else -> Role.KAI },
+                    text = m.text, vfe = m.vfe, curvature = m.curvature, temp = m.temp, model = m.model, ts = m.ts)
+            }
+        }
+    }
+
+    fun newChat(ctx: Context) {
+        viewModelScope.launch { createChat(ctx) }
+    }
+
+    fun deleteChat(ctx: Context, chatId: String) {
+        viewModelScope.launch {
+            val db = KaiDb.get(ctx)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.chatDao().delete(chatId) }
+            if (chatId == currentChatId) createChat(ctx) else refreshChatList(ctx)
+        }
+    }
+
+    fun clear(ctx: Context) {
+        viewModelScope.launch {
+            val db = KaiDb.get(ctx)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                db.messageDao().deleteForChat(currentChatId)
+            }
+            _messages.value = emptyList()
+            recursionDepth = 0
+            refreshChatList(ctx)
+        }
+    }
+
+    // ---- Tier 2: memory API ----
+    fun rememberFact(ctx: Context, fact: String) {
+        viewModelScope.launch {
+            MemoryEngine(ctx).store(fact)
+            _memoryCount.value = KaiDb.get(ctx).memoryDao().count()
+        }
+    }
+
+    fun forgetMemory(ctx: Context, id: String) {
+        viewModelScope.launch {
+            KaiDb.get(ctx).memoryDao().delete(id)
+            _memoryCount.value = KaiDb.get(ctx).memoryDao().count()
+        }
+    }
+
+    fun setUserName(ctx: Context, n: String) {
+        MemoryEngine(ctx).setUserName(n)
+        rememberFact(ctx, "user's name is $n")
+    }
+
     fun send(ctx: Context, userText: String) {
         if (userText.isBlank() || _isGenerating.value) return
         val curModel = _model.value
-        _messages.value = _messages.value + ChatMessage(role = Role.USER, text = userText, model = curModel)
+        val db = KaiDb.get(ctx)
+        val memEngine = MemoryEngine(ctx)
+        val now = System.currentTimeMillis()
+
+        // Persist user message
+        val userMsg = ChatMessage(role = Role.USER, text = userText, model = curModel)
+        _messages.value = _messages.value + userMsg
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            db.messageDao().insert(MessageEntity(id = userMsg.id, chatId = currentChatId, role = "USER",
+                text = userText, vfe = null, curvature = null, temp = null, model = curModel, ts = now))
+            db.chatDao().touch(currentChatId, now, userText.take(40))
+        }
+
         _isGenerating.value = true
 
-        val curvature = estimateCurvature(userText)
-        val surprise = estimateSurprise(userText, curvature)
-        val kl = estimateKL(userText)
-        val vfe = safeVFE(surprise, kl)
-        val baseTemp = 0.85f
-        val temp = safeTemp(baseTemp, curvature, 0.4f)
-
-        // Create empty Kai message and stream into it (real streaming UX)
-        val kaiId = java.util.UUID.randomUUID().toString()
-        val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = "", vfe = vfe, curvature = curvature, temp = temp, model = curModel)
-        _messages.value = _messages.value + kaiMsg
-
-        viewModelScope.launch {
-            val streamer = StreamingGenerator(ctx)
-            // Stream main answer
-            streamer.stream(userText, temp, vfe,
-                onToken = { tok ->
-                    _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + tok) else it }
-                },
-                onDone = {
-                    // Recursive self-prompt — Kai talking to Kai' (also streamed)
-                    if (vfe > 3.0f && recursionDepth < 2) {
-                        recursionDepth++
-                        val selfPrompt = "What would reduce VFE about: \"$userText\"? (curvature $curvature)"
-                        val selfVfe = safeVFE(surprise * 0.7f, kl * 0.8f)
-                        val selfTemp = safeTemp(temp, curvature * 0.8f, 0.35f)
-                        val ghostId = java.util.UUID.randomUUID().toString()
-                        val ghostMsg = ChatMessage(id = ghostId, role = Role.KAI_RECURSIVE, text = "", vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp, model = curModel)
-                        _messages.value = _messages.value + ghostMsg
-                        viewModelScope.launch {
-                            streamer.stream(selfPrompt, selfTemp, selfVfe,
-                                onToken = { t2 ->
-                                    _messages.value = _messages.value.map { if (it.id == ghostId) it.copy(text = if (it.text.isEmpty()) "↻ $t2" else it.text + t2) else it }
-                                },
-                                onDone = { _isGenerating.value = false }
-                            )
-                        }
-                    } else {
-                        recursionDepth = 0
-                        _isGenerating.value = false
-                    }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // Tier 2: extract facts ("remember X", "my name is Y") — ALL DB/memory on IO thread
+            try {
+                memEngine.extractFact(userText)?.let { fact ->
+                    memEngine.store(fact)
+                    _memoryCount.value = db.memoryDao().count()
                 }
-            )
-            // If not recursive, isGenerating will be set false in onDone above; for non-recursive case we need to set it there too
-            if (vfe <= 3.0f || recursionDepth == 0) {
-                // onDone for non-recursive already sets false, but ensure
+                if (userText.lowercase().startsWith("my name is ")) {
+                    memEngine.setUserName(userText.substring(11).trim().split(" ").first())
+                }
+
+                // Tier 3: recall top-k memories for this query → inject into Kai's prompt
+                val memBlock = memEngine.contextBlock(userText)
+                val enrichedPrompt = if (memBlock.isNotEmpty()) "$memBlock$userText" else userText
+
+                val curvature = estimateCurvature(userText)
+                val surprise = estimateSurprise(userText, curvature)
+                val kl = estimateKL(userText)
+                val vfe = safeVFE(surprise, kl)
+                val baseTemp = 0.85f
+                val temp = safeTemp(baseTemp, curvature, 0.4f)
+
+                val kaiId = java.util.UUID.randomUUID().toString()
+                val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = "", vfe = vfe, curvature = curvature, temp = temp, model = curModel)
+                _messages.value = _messages.value + kaiMsg
+
+                val streamer = StreamingGenerator(ctx)
+                streamer.stream(enrichedPrompt, temp, vfe,
+                    onToken = { tok ->
+                        _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + tok) else it }
+                    },
+                    onDone = {
+                        val finalText = _messages.value.find { it.id == kaiId }?.text ?: ""
+                        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI",
+                                text = finalText, vfe = vfe, curvature = curvature, temp = temp, model = curModel,
+                                ts = System.currentTimeMillis()))
+                        }
+                        if (vfe > 3.0f && recursionDepth < 2) {
+                            recursionDepth++
+                            val selfPrompt = "What would reduce VFE about: \"$userText\"? (curvature $curvature)"
+                            val selfVfe = safeVFE(surprise * 0.7f, kl * 0.8f)
+                            val selfTemp = safeTemp(temp, curvature * 0.8f, 0.35f)
+                            val ghostId = java.util.UUID.randomUUID().toString()
+                            val ghostMsg = ChatMessage(id = ghostId, role = Role.KAI_RECURSIVE, text = "", vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp, model = curModel)
+                            _messages.value = _messages.value + ghostMsg
+                            viewModelScope.launch {
+                                streamer.stream(selfPrompt, selfTemp, selfVfe,
+                                    onToken = { t2 ->
+                                        _messages.value = _messages.value.map { if (it.id == ghostId) it.copy(text = if (it.text.isEmpty()) "↻ $t2" else it.text + t2) else it }
+                                    },
+                                    onDone = {
+                                        val ghostText = _messages.value.find { it.id == ghostId }?.text ?: ""
+                                        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            db.messageDao().insert(MessageEntity(id = ghostId, chatId = currentChatId, role = "KAI_RECURSIVE",
+                                                text = ghostText, vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp,
+                                                model = curModel, ts = System.currentTimeMillis()))
+                                        }
+                                        _isGenerating.value = false
+                                    }
+                                )
+                            }
+                        } else {
+                            recursionDepth = 0
+                            _isGenerating.value = false
+                        }
+                    }
+                )
+            } catch (t: Throwable) {
+                android.util.Log.e("ChatViewModel", "send pipeline failed: $t")
+                _isGenerating.value = false
             }
         }
     }

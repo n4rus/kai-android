@@ -5,6 +5,12 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.kapt")
+}
+
+kapt {
+    arguments { arg("room.schemaLocation", "$projectDir/schemas") }
+    correctErrorTypes = true
 }
 
 android {
@@ -87,6 +93,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("com.android.billingclient:billing-ktx:6.1.0")
+    val room = "2.6.1"
+    implementation("androidx.room:room-runtime:$room")
+    implementation("androidx.room:room-ktx:$room")
+    kapt("androidx.room:room-compiler:$room")
     // LLM: Rust cdylib will be packaged via jniLibs; no extra dep needed
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

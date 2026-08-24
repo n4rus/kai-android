@@ -69,9 +69,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     }
 
     LaunchedEffect(Unit) {
-        vm.refreshDownloadState(ctx)
-        // Auto-recover: if GGUF already on disk (previous download), sync + load it silently
-        vm.autoLoadIfAvailable(ctx)
+        vm.initPersistence(ctx)   // Tier 1: load last chat + messages
+        vm.autoLoadIfAvailable(ctx) // GGUF auto-recover
         if (vm.downloadState.value.values.none { it }) {
             ModelCatalog.models.firstOrNull { it.tag == "qwen2.5:0.5b" }?.let {
                 vm.downloadModel(ctx, it.tag) { _ ->
@@ -86,6 +85,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Kai") },
                 actions = {
+                    // New chat button
+                    TextButton(onClick = { vm.newChat(ctx) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
                     Box {
                         TextButton(onClick = { pickerExpanded = true }) { Text(model, style = MaterialTheme.typography.labelLarge) }
                         DropdownMenu(expanded = pickerExpanded, onDismissRequest = { pickerExpanded = false }) {
@@ -123,6 +124,11 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     } catch (_: Throwable) { Toast.makeText(ctx, "Kai Pro $4.99 — 30 days, no subscription", Toast.LENGTH_SHORT).show() }
                                     pickerExpanded = false
                                 }
+                            )
+                            // Tier 2: memory count
+                            DropdownMenuItem(
+                                text = { Text("Memory: ${vm.memoryCount.collectAsState().value} facts (say \"remember X\")") },
+                                onClick = { pickerExpanded = false }
                             )
                         }
                     }
