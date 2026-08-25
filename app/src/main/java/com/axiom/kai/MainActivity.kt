@@ -69,6 +69,21 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
         }
     }
+    // 📎 File explorer: pick ANY file → Kai reads content into context
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { u ->
+            try {
+                val text = ctx.contentResolver.openInputStream(u)?.use { s ->
+                    s.readBytes().toString(Charsets.UTF_8).take(6000)
+                } ?: ""
+                val name = u.lastPathSegment ?: "file"
+                vm.send(ctx, "📎 Attached file '$name':\n$text\n\nSummarize/analyze this file.")
+                Toast.makeText(ctx, "File attached — Kai reads it", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "Read failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         vm.initPersistence(ctx)   // Tier 1: load last chat + messages
@@ -313,6 +328,9 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             Row(Modifier.fillMaxWidth().padding(8.dp).background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { imagePicker.launch("image/*") }) {
                     Text("📷", style = MaterialTheme.typography.titleLarge)
+                }
+                IconButton(onClick = { filePicker.launch("*/*") }) {
+                    Text("📎", style = MaterialTheme.typography.titleLarge)
                 }
                 OutlinedTextField(
                     value = input,
