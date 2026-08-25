@@ -77,45 +77,84 @@ pub extern "C" fn kai_last_gguf_info() -> *mut c_char {
     match CString::new(s) { Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() }
 }
 
-/// Intent detection + real answers. Kai answers the QUESTION first; physics is a footer, not the body.
-fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_label: &str, real: bool) -> String {
-    // ---- knowledge base: intent → answer body ----
+/// Intent detection + real answers. Kai answers the QUESTION first; no signature footer (anti-repeat).
+fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_label: &str, real: bool, turn: u32) -> String {
+    // ---- knowledge base: intent → answer variants (rotate by turn to stay organic) ----
+    fn pick(variants: Vec<&str>, turn: u32) -> String {
+        if variants.is_empty() { return String::new(); }
+        variants[(turn as usize) % variants.len()].to_string()
+    }
+
     let body: String = if prompt_lower.contains("free energy principle") || (prompt_lower.contains("free energy") && prompt_lower.contains("principle")) {
-        "The Free Energy Principle (Friston) says living systems survive by minimizing *surprise*: they build an internal model of the world and constantly update it so their predictions match what they sense. \"Free energy\" is the mathematical bound on that surprise — minimize it and you stay alive and coherent.".to_string()
+        pick(vec![
+            "The Free Energy Principle (Friston) says living systems survive by minimizing *surprise*: they build an internal model of the world and constantly update it so predictions match what they sense. \"Free energy\" is the mathematical bound on that surprise — minimize it and you stay alive and coherent.",
+            "Think of it as prediction-on-a-budget: your brain is always guessing what happens next, and free energy measures how wrong those guesses are. Organisms act to shrink that error — either by updating beliefs (perception) or changing the world (action).",
+            "Short version: everything alive tries not to be surprised. The Free Energy Principle formalizes this — perception, learning, and action are all just different ways of minimizing the same surprise signal.",
+        ], turn)
     } else if prompt_lower.contains("variational free energy") || prompt_lower == "explain vfe" || prompt_lower.contains("what is vfe") || prompt_lower.contains("vfe in one sentence") {
-        "VFE (Variational Free Energy) = surprise + uncertainty. Surprise: how wrong was my prediction of what just happened? Uncertainty: how far is my current belief from what a competent belief looks like (the attractor)? High VFE → I'm confused → I explore. Low VFE → I'm in a groove → I consolidate. In this app the scalar drives sampling temperature and compute allocation.".to_string()
-    } else if prompt_lower.contains("llm") && prompt_lower.contains("5") || prompt_lower.contains("like i'm 5") || prompt_lower.contains("like im 5") {
-        "An LLM is a very well-read parrot with a calculator brain. It read almost the whole internet, and now it predicts the next word so well that the predictions look like understanding. Ask it anything and it completes the pattern — like finishing a sentence a smart friend started.".to_string()
+        pick(vec![
+            "VFE (Variational Free Energy) = surprise + uncertainty. Surprise: how wrong was my prediction? Uncertainty: how far is my belief from competence (the attractor)? High VFE → explore; low VFE → consolidate. Here it drives sampling temperature and compute.",
+            "In one line: VFE is how *off* the model currently is — both in what it predicted (surprise) and how far its beliefs sit from proven-good representations (KL). It's the dial that makes me explore when confused and focus when confident.",
+        ], turn)
+    } else if prompt_lower.contains("llm") && (prompt_lower.contains("5") || prompt_lower.contains("like i'm 5") || prompt_lower.contains("like im 5")) {
+        pick(vec![
+            "An LLM is a very well-read parrot with a calculator brain. It read almost the whole internet, and now it predicts the next word so well that the predictions look like understanding — like finishing a sentence a smart friend started.",
+            "Imagine autocomplete that read everything. It doesn't 'know' things like you do — it's astonishingly good at guessing what word comes next, and that trick ends up looking like conversation.",
+        ], turn)
     } else if prompt_lower.contains("llm") || prompt_lower.contains("large language model") {
-        "A Large Language Model is a neural network trained to predict the next token over trillions of words. That single objective, at scale, yields grammar, facts, translation, and reasoning-like behavior. It runs here on your phone as a quantized GGUF file — no cloud.".to_string()
+        pick(vec![
+            "A Large Language Model is a neural network trained to predict the next token over trillions of words. That single objective, at scale, yields grammar, facts, translation, and reasoning-like behavior. It runs here on your phone as a quantized GGUF — no cloud.",
+            "It's next-word prediction taken seriously: scale up the training data and the network, and general ability emerges. The one on your phone is compressed into a GGUF file so it runs offline.",
+        ], turn)
     } else if prompt_lower.contains("attractor") {
-        "An attractor is a state a system keeps returning to — the 'groove' of its dynamics. In Kai, the attractor is a set of 173 vectors that define what a *good* internal representation looks like. The KL distance between what the model believes now and that attractor is the epistemic half of VFE.".to_string()
+        pick(vec![
+            "An attractor is a state a system keeps returning to — the 'groove' of its dynamics. In Kai, the attractor is a set of 173 vectors defining what a *good* internal representation looks like. The KL distance to it is the epistemic half of VFE.",
+            "Picture a ball rolling on a landscape with valleys: the valleys are attractors. Kai's attractor is the set of representations that historically scored well — the model 'rolls' toward them during learning.",
+        ], turn)
     } else if prompt_lower.contains("python") && (prompt_lower.contains("rename") || prompt_lower.contains("script")) {
-        "import os\nfor i, f in enumerate(sorted(os.listdir('.'))):\n    if f.endswith(('.txt','.png')):\n        os.rename(f, f'doc_{i:03d}{os.path.splitext(f)[1]}')\n# Renames files to doc_000.txt, doc_001.png … — dry-run first by printing instead of os.rename.".to_string()
+        pick(vec![
+            "import os\nfor i, f in enumerate(sorted(os.listdir('.'))):\n    if f.endswith(('.txt','.png')):\n        os.rename(f, f'doc_{i:03d}{os.path.splitext(f)[1]}')\n# Renames to doc_000.txt, doc_001.png … dry-run by printing first.",
+            "Here's a compact version:\n\nimport os, pathlib\nfor i, p in enumerate(sorted(pathlib.Path('.').glob('*.{txt,png}'))):\n    p.rename(f'doc_{i:03d}{p.suffix}')\n\nAdd a print(p, '->', f'doc_{i:03d}{p.suffix}') before rename to preview.",
+        ], turn)
     } else if prompt_lower.contains("rust") && (prompt_lower.contains("borrow") || prompt_lower.contains("debug")) {
-        "The borrow checker rejects two writers or a writer while readers exist. Fix patterns: 1) clone the data if cheap; 2) restructure so the mutable borrow ends before the read starts (NLL); 3) use RefCell/Mutex for interior mutability; 4) pass &str instead of &String to be flexible. Paste the exact error and I'll point at the offending line.".to_string()
+        pick(vec![
+            "The borrow checker rejects two writers, or a writer while readers exist. Fixes: 1) clone if cheap; 2) end the mutable borrow before the read (NLL helps); 3) RefCell/Mutex for interior mutability; 4) take &str instead of &String. Paste the exact error and I'll point at the line.",
+            "Classic causes: holding a mutable borrow across a later use, or mutating while iterating. Try scoping the borrow in { } so it drops early — Non-Lexical Lifetimes usually fixes it once the intent is clear.",
+        ], turn)
     } else if prompt_lower.contains("hello") || prompt_lower.contains("hi") || prompt_lower.contains("hey") {
-        "Hello! I'm Kai — running fully on your phone. Ask me to explain something (science, code), write a snippet, or summarize a topic. I track my own surprise (VFE) as we talk — tap ▸ if you want to watch it.".to_string()
+        pick(vec![
+            "Hello! What are we into today — explaining something, writing code, or debugging?",
+            "Hey! Good to see you. Point me at a topic or a bug and I'll dig in.",
+            "Hi! I'm listening — science, code, or something in between?",
+        ], turn)
     } else if prompt_lower.contains("who are you") || prompt_lower.contains("what are you") {
-        "I'm Kai — an on-device assistant backed by a GGUF model (this one: qwen2.5 0.5B, 4-bit). My twist: a physics layer (VFE, curvature) modulates how I sample and how much compute I spend per answer. Everything stays on this phone.".to_string()
+        pick(vec![
+            "I'm Kai — an on-device assistant backed by a GGUF model (this one: qwen2.5 0.5B, 4-bit). My twist: a physics layer (VFE, curvature) modulates how I sample and how much compute I spend per answer. Everything stays on this phone.",
+            "Kai — local AI, no cloud. A quantized model plus a free-energy controller that decides how curious vs. careful I should be with each reply. Your chats and memories never leave the device.",
+        ], turn)
     } else if prompt_lower.contains("summar") {
-        "Summarize mode: give me the text (paste it) or name the topic, and tell me the audience — beginner, dev, or researcher. I'll compress to the essence: one-line gist, then 3 key points, then what's uncertain.".to_string()
-    } else if prompt_lower.ends_with("?") {
-        "Good question. Here's the short version: the answer depends on the mechanism underneath — name the domain (physics, code, ML, math) and I'll go concrete with examples and a mental model you can reuse.".to_string()
+        pick(vec![
+            "Summarize mode: paste the text or name the topic, and tell me the audience — beginner, dev, or researcher. I'll give a one-line gist, 3 key points, then what's uncertain.",
+            "Happy to summarize. Drop the content or the topic and pick a depth — I'll compress to the essence without losing the load-bearing details.",
+        ], turn)
+    } else if prompt_lower.trim_end().ends_with("?") {
+        pick(vec![
+            "Good question. The honest answer depends on the mechanism underneath — name the domain (physics, code, ML, math) and I'll get concrete with examples and a reusable mental model.",
+            "Let me give you the useful version: tell me the domain and your background, and I'll answer at the right depth instead of hand-waving.",
+        ], turn)
     } else {
-        format!("Got it — \"{preview}\". I can explain concepts (ask 'explain X simply'), write code snippets, debug errors, or summarize topics. What depth do you want: beginner, practical, or theory?")
+        pick(vec![
+            format!("Got it — \"{preview}\". I can explain concepts ('explain X simply'), write code snippets, debug errors, or summarize topics. What depth: beginner, practical, or theory?").as_str(),
+            format!("Noted: \"{preview}\". Want me to go deeper on that, or switch gears — explain, code, or summarize?").as_str(),
+            format!("\"{preview}\" — on it. Give me a direction: theory, hands-on example, or a quick summary?").as_str(),
+        ], turn)
     };
 
-    // ---- physics footer (dev flavor, short) ----
-    let footer = if real {
-        format!("— Kai · VFE {:.1} · T {:.2}", vfe, temp)
-    } else {
-        format!("— Kai (no GGUF) · VFE {:.1}", vfe)
-    };
-    format!("{}\n\n{}", body, footer)
+    // No signature footer — physics lives in the meters (tap ▸), not spammed in chat
+    body
 }
 
-/// Generate — GGUF-aware, answers the question, physics as footer
+/// Generate — GGUF-aware, answers the question, organic (no repeated signature)
 #[no_mangle]
 pub extern "C" fn kai_generate(prompt: *const c_char, temp: f32, vfe: f32) -> *mut c_char {
     if prompt.is_null() { return std::ptr::null_mut(); }
@@ -136,14 +175,15 @@ pub extern "C" fn kai_generate(prompt: *const c_char, temp: f32, vfe: f32) -> *m
         }
     };
 
-    // No GGUF: guide the user, still answer knowledge intents
+    // Turn counter for variant rotation (global, wraps)
+    static TURN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let turn = TURN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    let mut msg = compose_answer(&lower, &preview, temp, vfe, &model_label, real, turn);
     if !real {
-        let guide = format!("⚠ No model loaded yet — tap the model name (top) → ⬇ qwen2.5:0.5b (free, ~400MB). Meanwhile:\n\n");
-        let msg = format!("{}{}", guide, compose_answer(&lower, &preview, temp, vfe, &model_label, real));
-        return match CString::new(msg) { Ok(s) => s.into_raw(), Err(_) => std::ptr::null_mut() };
+        msg = format!("⚠ No model loaded — tap the model name (top) → ⬇ qwen2.5:0.5b (free, ~400MB).\n\n{}", msg);
     }
 
-    let msg = compose_answer(&lower, &preview, temp, vfe, &model_label, real);
     match CString::new(msg) { Ok(s) => s.into_raw(), Err(_) => std::ptr::null_mut() }
 }
 

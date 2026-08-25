@@ -203,6 +203,7 @@ class ChatViewModel : ViewModel() {
 
     // ---- Tier 1: chat persistence ----
     private var currentChatId: String = java.util.UUID.randomUUID().toString()
+    fun currentChatId(): String = currentChatId
     private val _chatList = MutableStateFlow<List<ChatEntity>>(emptyList())
     val chatList: StateFlow<List<ChatEntity>> = _chatList.asStateFlow()
     private val _memoryCount = MutableStateFlow(0)

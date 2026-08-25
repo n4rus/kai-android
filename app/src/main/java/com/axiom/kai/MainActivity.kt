@@ -54,6 +54,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     val progress by vm.downloadProgress.collectAsState()
     var input by remember { mutableStateOf("") }
     var pickerExpanded by remember { mutableStateOf(false) }
+    var historyExpanded by remember { mutableStateOf(false) }
     var showPhysics by remember { mutableStateOf(false) } // physics meters collapsed by default (beginner-friendly)
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
@@ -86,7 +87,35 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Kai") },
                 actions = {
-                    // New chat button
+                    // Chat history drawer — continue a session or start new
+                    TextButton(onClick = { historyExpanded = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) }
+                    DropdownMenu(expanded = historyExpanded, onDismissRequest = { historyExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("✚ New chat") },
+                            onClick = { vm.newChat(ctx); historyExpanded = false }
+                        )
+                        val chats = vm.chatList.collectAsState().value
+                        if (chats.isEmpty()) {
+                            DropdownMenuItem(text = { Text("No history yet", color = MaterialTheme.colorScheme.onSurfaceVariant) }, onClick = {})
+                        }
+                        chats.forEach { c ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            if (c.id == vm.currentChatId()) "▸ ${c.title}" else c.title,
+                                            modifier = Modifier.weight(1f),
+                                            color = if (c.id == vm.currentChatId()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text("🗑", style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.clickable { vm.deleteChat(ctx, c.id) })
+                                    }
+                                },
+                                onClick = { vm.switchChat(ctx, c.id); historyExpanded = false }
+                            )
+                        }
+                    }
+                    // New chat quick button
                     TextButton(onClick = { vm.newChat(ctx) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
                     Box {
                         TextButton(onClick = { pickerExpanded = true }) { Text(model, style = MaterialTheme.typography.labelLarge) }
