@@ -71,7 +71,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     LaunchedEffect(Unit) {
         vm.initPersistence(ctx)   // Tier 1: load last chat + messages
         vm.autoLoadIfAvailable(ctx) // GGUF auto-recover
-        if (vm.downloadState.value.values.none { it }) {
+        vm.resumeIncompleteDownloads(ctx) // resume partial downloads with progress bar
+        if (vm.downloadState.value.values.none { it } && vm.downloadProgress.value.isEmpty()) {
             ModelCatalog.models.firstOrNull { it.tag == "qwen2.5:0.5b" }?.let {
                 vm.downloadModel(ctx, it.tag) { _ ->
                     Toast.makeText(ctx, "Downloading free ${it.tag} (${it.sizeMb}MB)…", Toast.LENGTH_SHORT).show()
@@ -141,6 +142,27 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
+
+            // Download progress bar — visible while any model downloads (resumes after quit)
+            val activeDownloads = progress.entries.toList()
+            if (activeDownloads.isNotEmpty()) {
+                Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    Column(Modifier.padding(10.dp)) {
+                        activeDownloads.forEach { (tag, pct) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("⬇ $tag", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+                                Text("$pct%", style = MaterialTheme.typography.labelMedium)
+                            }
+                            LinearProgressIndicator(
+                                progress = { pct / 100f },
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                            )
+                            Text("Resumes automatically if interrupted", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
 
             // Physics meters — collapsed by default (beginner-friendly), expandable for devs
             if (showPhysics) {

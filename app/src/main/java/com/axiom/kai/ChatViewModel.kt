@@ -54,12 +54,31 @@ class ChatViewModel : ViewModel() {
     private val _downloadProgress = MutableStateFlow<Map<String, Int>>(emptyMap())
     val downloadProgress: StateFlow<Map<String, Int>> = _downloadProgress.asStateFlow()
 
+    /** Restore progress bars for incomplete downloads after app restart */
+    fun resumeIncompleteDownloads(ctx: Context) {
+        val mgr = ModelManager(ctx)
+        val incomplete = ModelCatalog.models.filter { mgr.isIncomplete(it) }
+        for (entry in incomplete) {
+            val pct = ((mgr.partialBytes(entry) * 100) / (entry.sizeMb * 1024L * 1024L)).toInt().coerceIn(1, 99)
+            _downloadProgress.value = _downloadProgress.value + (entry.tag to pct)
+            android.util.Log.i("ChatViewModel", "Resuming incomplete ${entry.tag} at ${pct}%")
+            directFallback(ctx, entry) // Range-resume from .part
+        }
+    }
+
     fun downloadModel(ctx: Context, tag: String, onEnqueue: (Long) -> Unit = {}) {
         val entry = ModelCatalog.byTag(tag) ?: return
         val mgr = ModelManager(ctx)
         if (mgr.isDownloaded(entry)) {
             viewModelScope.launch { mgr.loadInRust(entry) }
             refreshDownloadState(ctx)
+            return
+        }
+        // Partial exists (.part)? Prefer resumable direct download (DownloadManager can't resume our .part)
+        if (mgr.isIncomplete(entry)) {
+            val pct = ((mgr.partialBytes(entry) * 100) / (entry.sizeMb * 1024L * 1024L)).toInt().coerceIn(1, 99)
+            _downloadProgress.value = _downloadProgress.value + (entry.tag to pct)
+            directFallback(ctx, entry)
             return
         }
         // Try DownloadManager (external dir, SecurityException-safe), then poll+copy+load

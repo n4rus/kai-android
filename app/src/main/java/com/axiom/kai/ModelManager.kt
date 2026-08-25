@@ -111,42 +111,75 @@ class ModelManager(private val ctx: Context) {
         }
     }
 
-    /** Direct download (coroutine-friendly) — writes straight to filesDir/models for Rust mmap */
+    /** Direct download — RESUMABLE via .part + HTTP Range; survives app quit */
     fun downloadDirect(entry: ModelEntry, onProgress: (Int) -> Unit = {}): Boolean {
         val dest = File(modelsDir, entry.fileName)
         if (dest.exists() && dest.length() > 1024*1024) return true
         dest.parentFile?.mkdirs()
         val tmp = File(modelsDir, entry.fileName + ".part")
-        return try {
-            val conn = URL(entry.url).openConnection() as HttpURLConnection
-            conn.connectTimeout = 15000
-            conn.readTimeout = 30000
-            conn.instanceFollowRedirects = true
-            conn.connect()
-            val total = conn.contentLengthLong.takeIf { it > 0 } ?: (entry.sizeMb * 1024L * 1024L)
-            conn.inputStream.use { input ->
-                tmp.outputStream().use { out ->
-                    val buf = ByteArray(1 shl 16)
-                    var read: Int
-                    var done = 0L
-                    var lastPct = -1
-                    while (input.read(buf).also { read = it } != -1) {
-                        out.write(buf, 0, read)
-                        done += read
-                        val pct = ((done * 100) / total).toInt().coerceIn(0, 100)
-                        if (pct != lastPct) { lastPct = pct; onProgress(pct) }
+        var attempts = 0
+        while (attempts < 5) {
+            attempts++
+            try {
+                val already = if (tmp.exists()) tmp.length() else 0L
+                val conn = URL(entry.url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 30000
+                conn.instanceFollowRedirects = true
+                if (already > 0) conn.setRequestProperty("Range", "bytes=$already-")
+                conn.connect()
+                // If server ignores Range and restarts from 0, restart file too
+                val resume = conn.responseCode == 206
+                val total = conn.contentLengthLong.takeIf { it > 0 }
+                    ?.let { if (resume) it + already else it }
+                    ?: (entry.sizeMb * 1024L * 1024L)
+                var done = if (resume) already else 0L
+                if (!resume) { tmp.delete(); tmp.createNewFile() }
+                conn.inputStream.use { input ->
+                    java.io.FileOutputStream(tmp, true).use { out ->
+                        val buf = ByteArray(1 shl 16)
+                        var read: Int
+                        var lastPct = ((done * 100) / total).toInt().coerceIn(0, 100)
+                        onProgress(lastPct)
+                        while (input.read(buf).also { read = it } != -1) {
+                            out.write(buf, 0, read)
+                            done += read
+                            val pct = ((done * 100) / total).toInt().coerceIn(0, 100)
+                            if (pct != lastPct) { lastPct = pct; onProgress(pct) }
+                        }
                     }
                 }
+                if (tmp.length() > 1024*1024) {
+                    tmp.renameTo(dest)
+                    return true
+                }
+                tmp.delete()
+                return false
+            } catch (e: java.io.IOException) {
+                // Network drop — keep .part, retry with Range resume
+                android.util.Log.w("ModelManager", "Direct dl attempt $attempts failed (will resume): ${e.message}")
+                try { Thread.sleep(2000L * attempts) } catch (_: InterruptedException) {}
+            } catch (e: Exception) {
+                android.util.Log.e("ModelManager", "Direct download failed for ${entry.tag}: $e")
+                break
             }
-            if (tmp.length() > 1024*1024) {
-                tmp.renameTo(dest)
-                true
-            } else { tmp.delete(); false }
-        } catch (e: Exception) {
-            android.util.Log.e("ModelManager", "Direct download failed for ${entry.tag}: $e")
-            tmp.delete()
-            false
         }
+        return false
+    }
+
+    /** Bytes downloaded so far (for UI progress restore after app quit) */
+    fun partialBytes(entry: ModelEntry): Long {
+        val part = File(modelsDir, entry.fileName + ".part")
+        if (part.exists()) return part.length()
+        val ext = File(extDir, entry.fileName)
+        if (ext.exists() && ext.length() < 1024*1024) return ext.length() // partial from DownloadManager
+        return 0L
+    }
+
+    /** True if a download is incomplete (has .part or small partial) */
+    fun isIncomplete(entry: ModelEntry): Boolean {
+        if (isDownloaded(entry)) return false
+        return partialBytes(entry) > 0L
     }
 
     fun loadInRust(entry: ModelEntry): Int {

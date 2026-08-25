@@ -222,7 +222,8 @@ object DarwinSync {
                 append("  \"physics\": { \"vfe_base\": $vfeBase, \"curvature_alpha\": $curvatureAlpha },\n")
                 append("  \"memories\": [\n")
                 append(mems.joinToString(",\n") { m ->
-                    "    { \"fact\": ${net.sf.json.JSONObject.quote(m.fact)}, \"source\": \"${m.source}\", \"created\": ${m.createdAt}, \"recall\": ${m.recallCount} }"
+                    val factJson = org.json.JSONObject.quote(m.fact)
+                    "    { \"fact\": $factJson, \"source\": \"${m.source}\", \"created\": ${m.createdAt}, \"recall\": ${m.recallCount} }"
                 })
                 append("\n  ]\n}")
             }
