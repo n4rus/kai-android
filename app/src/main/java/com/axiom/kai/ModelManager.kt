@@ -17,11 +17,23 @@ data class ModelEntry(
 )
 
 object ModelCatalog {
-    // Q4_K_M GGUFs — small enough for phone, all via Hugging Face (bartowski etc.)
+    // Q4_K_M GGUFs — phone-sized. ALL FREE in v1 (models are never paywalled).
     val models = listOf(
         ModelEntry(
             "qwen2.5:0.5b", "https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
-            "qwen2.5-0.5b-q4_k_m.gguf", 400, "0.5B — 800MB RAM, fastest, Galaxy A36 OK"
+            "qwen2.5-0.5b-q4_k_m.gguf", 400, "0.5B — 800MB RAM, fastest, instant"
+        ),
+        ModelEntry(
+            "qwen2.5-coder:3b", "https://huggingface.co/bartowski/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf",
+            "qwen2.5-coder-3b-q4_k_m.gguf", 1900, "Coder 3B — best for code tasks"
+        ),
+        ModelEntry(
+            "gemma2:2b", "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
+            "gemma2-2b-q4_k_m.gguf", 1600, "Gemma 2 — 2B, balanced quality"
+        ),
+        ModelEntry(
+            "llama3.2:3b", "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+            "llama3.2-3b-q4_k_m.gguf", 1900, "Llama 3.2 — 3B, strong general"
         ),
         ModelEntry(
             "qwen2.5:7b", "https://huggingface.co/bartowski/Qwen2_5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
@@ -29,7 +41,7 @@ object ModelCatalog {
         ),
         ModelEntry(
             "llama3:8b", "https://huggingface.co/bartowski/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf",
-            "llama3-8b-q4_k_m.gguf", 4700, "Llama 3 — dense baseline"
+            "llama3-8b-q4_k_m.gguf", 4700, "Llama 3 — 8B dense"
         ),
         ModelEntry(
             "gemma2:9b", "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf",

@@ -358,7 +358,33 @@ class ChatViewModel : ViewModel() {
 
                 // Tier 3: recall top-k memories for this query → inject into Kai's prompt
                 val memBlock = memEngine.contextBlock(userText)
-                val enrichedPrompt = if (memBlock.isNotEmpty()) "$memBlock$userText" else userText
+                // Tools: web/file/shell — run locally, feed result as Kai's answer
+                val toolResult = Tools.tryTool(ctx, userText)
+                if (toolResult != null) {
+                    val toolMsg = ChatMessage(role = Role.KAI, text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool")
+                    _messages.value = _messages.value + toolMsg
+                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
+                            text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
+                    }
+                    _isGenerating.value = false
+                } else {
+                    continueSendAfterTools(ctx, db, memEngine, userText, curModel)
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e("ChatViewModel", "send pipeline failed: $t")
+                _isGenerating.value = false
+            }
+        }
+    }
+
+    private fun continueSendAfterTools(ctx: Context, db: KaiDb, memEngine: MemoryEngine, userText: String, curModel: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val memBlock = memEngine.contextBlock(userText)
+                val toolsBlock = Tools.toolsPrompt(ctx)
+                val memPlusTools = memBlock + toolsBlock
+                val enrichedPrompt = if (memPlusTools.isNotEmpty()) "$memPlusTools$userText" else userText
 
                 val curvature = estimateCurvature(userText)
                 val surprise = estimateSurprise(userText, curvature)

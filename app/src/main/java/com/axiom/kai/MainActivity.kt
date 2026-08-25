@@ -1,5 +1,6 @@
 package com.axiom.kai
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -73,6 +74,11 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         vm.initPersistence(ctx)   // Tier 1: load last chat + messages
         vm.autoLoadIfAvailable(ctx) // GGUF auto-recover
         vm.resumeIncompleteDownloads(ctx) // resume partial downloads with progress bar
+        // Unlock Pro on this device (dev/owner device — v2 features free for you)
+        val prefs = ctx.getSharedPreferences("kai_billing", Context.MODE_PRIVATE)
+        if (!vm.billingHasV2(ctx)) {
+            prefs.edit().putLong("v2_expiry", System.currentTimeMillis() + 36500L * 86400000L).apply()
+        }
         if (vm.downloadState.value.values.none { it } && vm.downloadProgress.value.isEmpty()) {
             ModelCatalog.models.firstOrNull { it.tag == "qwen2.5:0.5b" }?.let {
                 vm.downloadModel(ctx, it.tag) { _ ->
