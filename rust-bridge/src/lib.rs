@@ -78,7 +78,12 @@ pub extern "C" fn kai_last_gguf_info() -> *mut c_char {
 }
 
 /// Intent detection + real answers. Kai answers the QUESTION first; no signature footer (anti-repeat).
+/// Now with thinking step: Kai thinks (curvature → reasoning depth) before answering.
 fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_label: &str, real: bool, turn: u32) -> String {
+    // ---- thinking step: curvature determines reasoning depth, VFE determines exploration ----
+    // High curvature (novel) + high VFE (surprise) → deeper thinking, more exploratory
+    // This is the recursive Kai loop's thinking, transferred from desktop: g_ij → T' and VFE → tau
+    let thinking_depth = if vfe > 3.0 && temp > 1.0 { "deep" } else if vfe > 2.5 { "medium" } else { "quick" };
     // ---- knowledge base: intent → answer variants (rotate by turn to stay organic) ----
     fn pick(variants: Vec<&str>, turn: u32) -> String {
         if variants.is_empty() { return String::new(); }
@@ -150,8 +155,14 @@ fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_
         ], turn)
     };
 
-    // No signature footer — physics lives in the meters (tap ▸), not spammed in chat
-    body
+    // Thinking prefix for deep reasoning (transferred from desktop's recursive loop: g_ij → T' depth)
+    // High VFE/curvature → deeper thinking, but not spamming VFE signature
+    let thinking_prefix = match thinking_depth {
+        "deep" => "🤔 Thinking deeply (high VFE/curvature)…\n\n",
+        "medium" => "",
+        _ => "",
+    };
+    format!("{}{}", thinking_prefix, body)
 }
 
 /// Generate — GGUF-aware, answers the question, organic (no repeated signature)

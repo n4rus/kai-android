@@ -76,12 +76,27 @@ fun OpencodeTerminal(
             }
         }
 
-        // Quick chips for common opencode actions
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SuggestionChip(onClick = { input = "kai launch opencode" }, label = { Text("launch", style = MaterialTheme.typography.labelSmall) })
-            SuggestionChip(onClick = { input = "kai export" }, label = { Text("export", style = MaterialTheme.typography.labelSmall) })
-            SuggestionChip(onClick = { input = "kai import" }, label = { Text("import", style = MaterialTheme.typography.labelSmall) })
-            SuggestionChip(onClick = { input = "help" }, label = { Text("help", style = MaterialTheme.typography.labelSmall) })
+        // Quick chips for common opencode actions — FULL MENU, all clickable
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Quick opencode menu — tap any command:", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8B949E))
+            // Row 1: core
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("kai launch opencode", "kai export", "kai import", "help").forEach { cmd ->
+                    SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.substringAfter(" ").take(12), style = MaterialTheme.typography.labelSmall) })
+                }
+            }
+            // Row 2: file/dev
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("/ls", "/cat <path>", "> echo hi", "browse example.com").forEach { cmd ->
+                    SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.take(12), style = MaterialTheme.typography.labelSmall) })
+                }
+            }
+            // Row 3: Kai PC live + sessions
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("kai export --to-phone", "kai import --help", "opencode --help").forEach { cmd ->
+                    SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.take(14), style = MaterialTheme.typography.labelSmall) })
+                }
+            }
         }
 
         // Input row
