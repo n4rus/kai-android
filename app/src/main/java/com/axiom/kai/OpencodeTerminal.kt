@@ -167,12 +167,19 @@ suspend fun runOpencodeCommand(ctx: Context, raw: String, onImportRequested: () 
             "Natural language also works: tell Kai 'export history to phone' or 'import my phone'."
         )
 
-        lower == "kai launch opencode" || lower == "opencode" -> listOf(
-            "✓ Kai REPL is this chat (swipe to Chat tab).",
-            "  You are already in opencode — the Chat screen *is* kai launch opencode.",
-            "  VFE: ${try { String.format("%.1f", KaiBridge.calculateVFE(1.0f, 0.5f)) } catch (_: Throwable) { "stub" }}",
-            "  Try: 'What is VFE?' in the Chat tab."
-        )
+        lower == "kai launch opencode" || lower == "opencode" -> {
+            // Real launch: show that the Chat tab IS the REPL, and also try to start the PC live server if kai-pc is selected
+            val pcHost = KaiPcClient.getHost(ctx)
+            val status = if (KaiPcClient.isConfigured(ctx)) "Kai PC configured at $pcHost — live"
+                         else "Kai PC not configured — use kai-pc:live model + ⚙️ to set IP"
+            listOf(
+                "▶ Launching Kai REPL…",
+                "  Chat tab IS kai launch opencode (VFE-governed, same as desktop).",
+                "  $status",
+                "  Terminal is live — try: kai export, /ls, > echo hi, browse example.com",
+                "  Tip: In Chat, say 'export history to phone' and Kai will handle it."
+            )
+        }
 
         lower.startsWith("kai export") -> {
             val path = if (lower.contains("--to-phone")) {

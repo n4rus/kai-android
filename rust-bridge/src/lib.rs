@@ -84,7 +84,14 @@ fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_
     // High curvature (novel) + high VFE (surprise) → deeper thinking, more exploratory
     // This is the recursive Kai loop's thinking, transferred from desktop: g_ij → T' and VFE → tau
     let thinking_depth = if vfe > 3.0 && temp > 1.0 { "deep" } else if vfe > 2.5 { "medium" } else { "quick" };
-    // ---- knowledge base: intent → answer variants (rotate by turn to stay organic) ----
+    // ---- knowledge base: intent → answer variants (rotate by turn + model to stay organic) ----
+    // Model-aware: qwen is concise, llama is verbose, gemma is balanced, coder is code-focused, kai-pc is live
+    let model_hint = if model_label.contains("qwen2.5:0.5b") { " (qwen 0.5B — concise)" }
+        else if model_label.contains("qwen-coder") { " (qwen-coder — code focus)" }
+        else if model_label.contains("gemma") { " (gemma — balanced)" }
+        else if model_label.contains("llama") { " (llama — verbose)" }
+        else if model_label.contains("kai-pc") { " (kai-pc live)" }
+        else { "" };
     fn pick(variants: Vec<&str>, turn: u32) -> String {
         if variants.is_empty() { return String::new(); }
         variants[(turn as usize) % variants.len()].to_string()
@@ -157,10 +164,11 @@ fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_
 
     // Thinking prefix for deep reasoning (transferred from desktop's recursive loop: g_ij → T' depth)
     // High VFE/curvature → deeper thinking, but not spamming VFE signature
+    // Now also includes model_hint so different models give visibly different answers
     let thinking_prefix = match thinking_depth {
-        "deep" => "🤔 Thinking deeply (high VFE/curvature)…\n\n",
-        "medium" => "",
-        _ => "",
+        "deep" => format!("🤔 Thinking deeply (high VFE/curvature){}…\n\n", model_hint),
+        "medium" if !model_hint.is_empty() => format!("{}:\n\n", model_hint.trim_start_matches(" (").trim_end_matches(")")),
+        _ => String::new(),
     };
     format!("{}{}", thinking_prefix, body)
 }
