@@ -351,13 +351,27 @@ class ChatViewModel : ViewModel() {
             try {
                 // --- KAI-PC LIVE: if selected model is the encrypted remote, send straight to PC's live opencode session ---
                 if (curModel == "kai-pc:live") {
-                    // This is the "phone as remote control" mode: app just forwards text/file/image to PC
-                    // and shows what the PC's terminal returns live
-                    val isConfigured = KaiPcClient.isConfigured(ctx)
+                    // Auto-discover PC if not configured (no manual IP needed)
+                    var isConfigured = KaiPcClient.isConfigured(ctx)
+                    var host: String? = null
+                    var token: String? = null
                     if (!isConfigured) {
-                        val msg = "🔒 Kai PC not configured — open Terminal tab → Settings (gear) → enter PC IP:port + token\n" +
-                            "On PC: python3 tools/kai_pc_server.py --port 8443 --token <choose>  (shows IP)\n" +
-                            "Or via USB: adb forward tcp:8443 tcp:8443 and use 127.0.0.1:8443"
+                        // Try auto-discovery in background, show "searching" message
+                        val searchingMsg = ChatMessage(role = Role.KAI, text = "🔍 Searching for Kai PC on local network/USB…", vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "kai-pc:live")
+                        _messages.value = _messages.value + searchingMsg
+                        host = KaiPcClient.autoDiscover(ctx)
+                        // Remove searching message
+                        _messages.value = _messages.value.filter { it.id != searchingMsg.id }
+                        if (host != null) {
+                            isConfigured = true
+                            token = KaiPcClient.getToken(ctx)
+                        }
+                    }
+                    if (!isConfigured || host == null) {
+                        val msg = "🔒 Kai PC not found automatically.\n\n" +
+                            "On PC: `python3 tools/kai_pc_server.py --port 8443 --token kai-secret-123`\n" +
+                            "On phone: ensure WiFi same as PC, or USB: `adb forward tcp:8443 tcp:8443` and use 127.0.0.1:8443\n" +
+                            "Then: Terminal → ⚙️ → enter PC IP:port + token, or just say 'export history to phone' on PC and 'import' here."
                         val toolMsg = ChatMessage(role = Role.KAI, text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "kai-pc:live")
                         _messages.value = _messages.value + toolMsg
                         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -369,7 +383,7 @@ class ChatViewModel : ViewModel() {
                     }
                     // Create placeholder for PC reply (will stream into it when PC responds)
                     val pcId = java.util.UUID.randomUUID().toString()
-                    val pcMsg = ChatMessage(id = pcId, role = Role.KAI, text = "↗ Sending to Kai PC…", vfe = 2.5f, curvature = 0.5f, temp = 0.9f, model = "kai-pc:live")
+                    val pcMsg = ChatMessage(id = pcId, role = Role.KAI, text = "↗ Sending to Kai PC (${host})…", vfe = 2.5f, curvature = 0.5f, temp = 0.9f, model = "kai-pc:live")
                     _messages.value = _messages.value + pcMsg
                     // Send to PC (encrypted)
                     val result = KaiPcClient.send(ctx, userText, "text", null)

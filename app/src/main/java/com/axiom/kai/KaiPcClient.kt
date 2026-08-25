@@ -41,6 +41,79 @@ object KaiPcClient {
 
     fun isConfigured(ctx: Context): Boolean = !getHost(ctx).isNullOrBlank() && !getToken(ctx).isNullOrBlank()
 
+    /** Try to auto-discover Kai PC on the local network or via USB forward */
+    suspend fun autoDiscover(ctx: Context): String? = withContext(Dispatchers.IO) {
+        // 1. Check if already configured and reachable
+        val savedHost = getHost(ctx)
+        val savedToken = getToken(ctx)
+        if (!savedHost.isNullOrBlank() && !savedToken.isNullOrBlank()) {
+            // Try saved host first
+            if (tryConnect(savedHost, savedToken, getScheme(ctx))) return@withContext savedHost
+        }
+
+        // 2. Try common local network IPs and adb forward
+        val candidates = listOf(
+            "127.0.0.1:8443", // adb forward tcp:8443 tcp:8443
+            "10.0.2.2:8443",  // emulator host
+            "192.168.1.100:8443", "192.168.1.10:8443", "192.168.0.100:8443", "192.168.0.10:8443",
+            "192.168.42.1:8443", "192.168.43.1:8443" // USB tethering
+        )
+
+        // Also try to get the device's gateway IP and try it
+        try {
+            val wifi = ctx.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            val dhcp = wifi?.dhcpInfo
+            if (dhcp != null) {
+                val gateway = (dhcp.gateway and 0xFF).toString() + "." +
+                    ((dhcp.gateway shr 8) and 0xFF) + "." +
+                    ((dhcp.gateway shr 16) and 0xFF) + "." +
+                    ((dhcp.gateway shr 24) and 0xFF)
+                // Try gateway and gateway subnet
+                for (i in 1..5) {
+                    val ip = gateway.substringBeforeLast(".") + ".${i}:8443"
+                    if (ip !in candidates && tryConnect(ip, savedToken ?: "kai-secret-123", "https")) {
+                        if (savedToken != null) saveConfig(ctx, ip, savedToken, "https")
+                        return@withContext ip
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        for (host in candidates) {
+            val token = savedToken ?: "kai-secret-123"
+            if (tryConnect(host, token, "https") || tryConnect(host, token, "http")) {
+                // Auto-save the discovered host
+                saveConfig(ctx, host, token, if (tryConnect(host, token, "https")) "https" else "http")
+                return@withContext host
+            }
+        }
+        null
+    }
+
+    private suspend fun tryConnect(host: String, token: String, scheme: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$scheme://$host/health")
+            val conn = (if (scheme == "https") {
+                val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+                    override fun checkClientTrusted(a: Array<java.security.cert.X509Certificate>?, b: String?) {}
+                    override fun checkServerTrusted(a: Array<java.security.cert.X509Certificate>?, b: String?) {}
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                })
+                val sc = SSLContext.getInstance("SSL")
+                sc.init(null, trustAll, java.security.SecureRandom())
+                (url.openConnection() as HttpsURLConnection).apply {
+                    sslSocketFactory = sc.socketFactory
+                    hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                }
+            } else url.openConnection() as HttpURLConnection).apply {
+                setRequestProperty("Authorization", "Bearer $token")
+                connectTimeout = 2000
+                readTimeout = 3000
+            }
+            conn.responseCode in 200..299
+        } catch (_: Exception) { false }
+    }
+
     /** Send text/file/image to PC's live session. Returns PC's reply. */
     suspend fun send(
         ctx: Context,
