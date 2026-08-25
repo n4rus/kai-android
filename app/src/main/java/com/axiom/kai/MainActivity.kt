@@ -31,6 +31,8 @@ import com.axiom.kai.ui.theme.KaiTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // PDF engine init (desktop ingest parity — /pdf + 📎 .pdf files)
+        try { com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext) } catch (_: Throwable) {}
         setContent { KaiTheme { KaiApp() } }
     }
 }
@@ -119,12 +121,23 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 }
             }
             try {
-                val text = ctx.contentResolver.openInputStream(u)?.use { s ->
-                    s.readBytes().toString(Charsets.UTF_8).take(6000)
-                } ?: ""
-                val name = u.lastPathSegment ?: "file"
+                val name = (u.lastPathSegment ?: "file")
+                val isPdf = name.lowercase().endsWith(".pdf") ||
+                    (ctx.contentResolver.getType(u) ?: "").contains("pdf")
+                val text = if (isPdf) {
+                    // Copy to cache then extract with pdfbox
+                    val tmp = java.io.File(ctx.cacheDir, "picked.pdf")
+                    ctx.contentResolver.openInputStream(u)?.use { inp -> tmp.outputStream().use { inp.copyTo(it) } }
+                    val extracted = Tools.pdfExtract(tmp.absolutePath)
+                    tmp.delete()
+                    extracted
+                } else {
+                    ctx.contentResolver.openInputStream(u)?.use { s ->
+                        s.readBytes().toString(Charsets.UTF_8).take(6000)
+                    } ?: ""
+                }
                 vm.send(ctx, "📎 Attached file '$name':\n$text\n\nSummarize/analyze this file.")
-                Toast.makeText(ctx, "File attached — Kai reads it", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, if (isPdf) "PDF attached — Kai extracts text" else "File attached — Kai reads it", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(ctx, "Read failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }

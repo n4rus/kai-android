@@ -87,8 +87,14 @@ fun OpencodeTerminal(
             }
             // Row 2: file/dev
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf("/ls", "/cat <path>", "> echo hi", "browse example.com").forEach { cmd ->
+                listOf("/ls", "/cat <path>", "> echo hi", "/pdf <f>", "/search <q>", "/apps").forEach { cmd ->
                     SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.take(12), style = MaterialTheme.typography.labelSmall) })
+                }
+            }
+            // Row 2b: companion actions
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("/openapp <n>", "/alarm 7:30", "/event T @ date", "/battery", "/note txt").forEach { cmd ->
+                    SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.take(14), style = MaterialTheme.typography.labelSmall) })
                 }
             }
             // Row 3: Kai PC live + sessions
@@ -128,10 +134,13 @@ fun OpencodeTerminal(
                     history = history + TermLine("user", cmd, true)
                     input = ""
                     isBusy = true
-                    scope.launch {
-                        val out = runOpencodeCommand(ctx, cmd, onImportRequested)
-                        history = history + out.map { TermLine("kai", it, false) }
-                        isBusy = false
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        val out = try { runOpencodeCommand(ctx, cmd, onImportRequested) }
+                            catch (e: Throwable) { listOf("error: ${e.javaClass.simpleName}: ${e.message}") }
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            history = history + out.map { TermLine("kai", it, false) }
+                            isBusy = false
+                        }
                     }
                 },
                 enabled = input.isNotBlank() && !isBusy
@@ -228,9 +237,12 @@ suspend fun runOpencodeCommand(ctx: Context, raw: String, onImportRequested: () 
             listOf(Tools.shell(ctx, shellCmd))
         }
 
-        else -> listOf(
+        // Full tool surface (pdf / search / img / apps / openapp / url / alarm / event / battery / note)
+        else -> Tools.tryTool(ctx, cmd)?.let { r -> listOf(r) } ?: listOf(
             "Unknown: $cmd",
-            "Try: help, kai launch opencode, kai export, kai import, /ls, /cat <path>, > <shell>"
+            "Try: help, kai launch opencode, kai export, kai import, /ls, /cat <path>, > <shell>,",
+            "     /pdf <f>, /search <q>, /img <f>, /apps [q], /openapp <n>, /url <u>, /alarm HH:MM [label],",
+            "     /event Title @ yyyy-MM-dd HH:mm, /battery, /note text"
         )
     }
 }
