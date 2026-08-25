@@ -126,18 +126,20 @@ pub extern "C" fn kai_last_gguf_info() -> *mut c_char {
 }
 
 /// Chat template per model family — returns (template_fn_name applied prompt)
+const KAI_SYSTEM: &str = "You are Kai, an offline AI companion running directly on the user's Android phone. You HAVE persistent memory: a local database stores facts the user told you (shown to you inside [Memory] blocks — treat them as things you remember) and your chat history survives restarts, so never claim you have no memory. Answer the question asked — direct and honest.";
+
 fn apply_chat_template(model_name_lower: &str, user_text: &str) -> String {
     if model_name_lower.contains("qwen") {
         format!(
-            "<|im_start|>system\nYou are Kai, a helpful, direct assistant running fully offline on the user's phone. Answer the question asked — no filler, no meta commentary.<|im_end|>\n<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
+            "<|im_start|>system\n{KAI_SYSTEM}<|im_end|>\n<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
         )
     } else if model_name_lower.contains("gemma") {
         format!(
-            "<bos><start_of_turn>user\n{user_text}<end_of_turn>\n<start_of_turn>model\n"
+            "<bos><start_of_turn>user\n{KAI_SYSTEM}\n\n{user_text}<end_of_turn>\n<start_of_turn>model\n"
         )
     } else if model_name_lower.contains("llama") {
         format!(
-            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are Kai, a helpful offline assistant. Be direct.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{KAI_SYSTEM}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
         )
     } else {
         // Generic fallback: raw text

@@ -473,8 +473,25 @@ class ChatViewModel : ViewModel() {
             try {
                 val memBlock = memEngine.contextBlock(userText)
                 val toolsBlock = Tools.toolsPrompt(ctx)
-                val memPlusTools = memBlock + toolsBlock
-                val enrichedPrompt = if (memPlusTools.isNotEmpty()) "$memPlusTools$userText" else userText
+
+                // Self-knowledge: when asked about Kai itself, tell the model its REAL state
+                // (small models otherwise fall back to generic "I'm an AI without memory" training priors)
+                val lowerQ = userText.lowercase()
+                val asksAboutSelf = listOf(
+                    "persistent memory", "your memory", "do you remember", "you remember",
+                    "remember me", "remember anything", "about you", "about yourself",
+                    "who are you", "what are you", "what can you do", "your capabilities",
+                    "can you learn", "do you know me", "know about me"
+                ).any { lowerQ.contains(it) } ||
+                    (lowerQ.contains("memory") && (lowerQ.contains("you") || lowerQ.contains("have")))
+                val selfBlock = if (asksAboutSelf) {
+                    val count = db.memoryDao().count()
+                    val facts = db.memoryDao().allOnce().take(3).map { it.fact }
+                    val factList = if (facts.isEmpty()) "(none stored yet)" else facts.joinToString("; ")
+                    "\n[Kai self-state] You are Kai, running fully offline on this device. You DO have persistent memory: $count fact(s) about the user are stored in a local database and survive restarts, and chat history persists between sessions. Facts you currently remember: $factList. If asked whether you have memory, answer YES and mention what you remember. Never deny having memory.\n\n"
+                } else ""
+                val memPlusTools = selfBlock + memBlock + toolsBlock
+                val enrichedPrompt = if (memPlusTools.isNotBlank()) "$memPlusTools$userText" else userText
 
                 val curvature = estimateCurvature(userText)
                 val surprise = estimateSurprise(userText, curvature)
