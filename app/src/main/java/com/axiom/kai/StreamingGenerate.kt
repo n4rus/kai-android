@@ -23,12 +23,12 @@ class StreamingGenerator(private val ctx: android.content.Context) {
             else "[Kai VFE ${"%.1f".format(vfe)}] \"$prompt\" — streaming…"
         }
 
-        // Split into words to simulate token streaming; pacing by VFE/temp
+        // Real inference is done — stream out fast so text appears naturally
         val tokens = full.split(Regex("(?<=\\s)|(?=\\s)")).filter { it.isNotEmpty() }
         val baseDelayMs = when {
-            vfe > 3.5f -> 40L  // high VFE → slower, more exploratory
-            temp > 1.0f -> 60L
-            else -> 30L
+            vfe > 3.5f -> 12L  // high VFE → slightly slower reveal
+            temp > 1.0f -> 10L
+            else -> 8L
         }
 
         for (tok in tokens) {

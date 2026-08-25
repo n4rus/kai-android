@@ -70,7 +70,7 @@ class ChatViewModel : ViewModel() {
         val entry = ModelCatalog.byTag(tag) ?: return
         val mgr = ModelManager(ctx)
         if (mgr.isDownloaded(entry)) {
-            viewModelScope.launch { mgr.loadInRust(entry) }
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { mgr.loadInRust(entry) }
             refreshDownloadState(ctx)
             return
         }
@@ -100,8 +100,10 @@ class ChatViewModel : ViewModel() {
                             sawRow = true
                             val status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS))
                             if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
-                                mgr.syncExternalToInternal(entry)
-                                mgr.loadInRust(entry)
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    mgr.syncExternalToInternal(entry)
+                                    mgr.loadInRust(entry)
+                                }
                                 refreshDownloadState(ctx)
                                 return@launch
                             }
@@ -114,8 +116,10 @@ class ChatViewModel : ViewModel() {
                     if (!sawRow) {
                         // Row gone (cleared/notification dismissed) — check file landed anyway
                         if (mgr.isDownloaded(entry)) {
-                            mgr.syncExternalToInternal(entry)
-                            mgr.loadInRust(entry)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                mgr.syncExternalToInternal(entry)
+                                mgr.loadInRust(entry)
+                            }
                             refreshDownloadState(ctx)
                             return@launch
                         }
@@ -130,8 +134,10 @@ class ChatViewModel : ViewModel() {
         // Safety net: if file already on disk (previous session downloaded it), just load it
         viewModelScope.launch {
             kotlinx.coroutines.delay(1500)
-            if (mgr.isDownloaded(entry) && mgr.syncExternalToInternal(entry)) {
-                mgr.loadInRust(entry)
+            if (mgr.isDownloaded(entry)) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    if (mgr.syncExternalToInternal(entry)) mgr.loadInRust(entry)
+                }
                 refreshDownloadState(ctx)
             }
         }
@@ -145,22 +151,26 @@ class ChatViewModel : ViewModel() {
                 }
             }
             if (ok) {
-                ModelManager(ctx).loadInRust(entry)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    ModelManager(ctx).loadInRust(entry)
+                }
                 _downloadProgress.value = _downloadProgress.value - entry.tag
             }
             refreshDownloadState(ctx)
         }
     }
 
-    fun tryLoadCurrentModel(ctx: Context): Int {
-        val entry = ModelCatalog.byTag(_model.value) ?: return -1
-        val r = ModelManager(ctx).loadInRust(entry)
-        // refresh info after load
-        try {
-            val info = KaiBridge.lastGgufInfo()
-            // info is "path|size|is_gguf|version" — VFE meter will show it via next message
-        } catch (_: Exception) {}
-        return r
+    fun tryLoadCurrentModel(ctx: Context, onResult: (Int) -> Unit = {}) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val entry = ModelCatalog.byTag(_model.value)
+            val r = if (entry == null) -1 else ModelManager(ctx).loadInRust(entry)
+            // refresh info after load
+            try {
+                val info = KaiBridge.lastGgufInfo()
+                // info is "path|size|is_gguf|version" — VFE meter will show it via next message
+            } catch (_: Exception) {}
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onResult(r) }
+        }
     }
 
     // Cache last GGUF label to avoid spamming JNI on every recomposition

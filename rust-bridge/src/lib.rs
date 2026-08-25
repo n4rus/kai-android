@@ -1,6 +1,6 @@
 //! Kai Bridge — Rust cdylib for Android JNI
-//! Real GGUF: mmap, header validation, then VFE/curvature-aware generate.
-//! Stub inference is now GGUF-aware (proves file is used), not just templated.
+//! REAL inference: loads GGUF via llama.cpp, generates with VFE-modulated temperature.
+//! No canned answers: if a model is loaded, the model answers. If not, Kai says so.
 
 use std::ffi::{CStr, CString};
 use std::fs::File;
@@ -9,9 +9,24 @@ use std::sync::Mutex;
 
 use memmap2::MmapOptions;
 
-// Global state — last loaded GGUF path + header info
-static LAST_MODEL: Mutex<Option<LoadedInfo>> = Mutex::new(None);
+use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::llama_backend::LlamaBackend;
+use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::{AddBos, LlamaModel, Special};
+use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::token::LlamaToken;
 
+/// Loaded llama.cpp model + metadata
+struct ModelSlot {
+    model: LlamaModel,
+    path: String,
+    size: u64,
+}
+
+static BACKEND: Mutex<Option<LlamaBackend>> = Mutex::new(None);
+static MODEL: Mutex<Option<ModelSlot>> = Mutex::new(None);
+
+/// Info string for Kotlin UI (kept even while model is in MODEL slot)
 #[derive(Clone, Debug)]
 struct LoadedInfo {
     path: String,
@@ -19,34 +34,64 @@ struct LoadedInfo {
     is_gguf: bool,
     version: u32,
 }
+static LAST_INFO: Mutex<Option<LoadedInfo>> = Mutex::new(None);
+
+fn info_of(slot: Option<&ModelSlot>) -> Option<LoadedInfo> {
+    slot.map(|s| LoadedInfo {
+        path: s.path.clone(),
+        size: s.size,
+        is_gguf: true,
+        version: 3,
+    })
+}
 
 /// Load GGUF at path → 0 ok, -1 err
-/// Real: open, mmap first 16 bytes, check "GGUF" magic (0x46554747), store info
+/// Validates magic quickly via mmap, then hands the file to llama.cpp for a full load.
 #[no_mangle]
 pub extern "C" fn kai_load_gguf(path: *const c_char) -> i32 {
     if path.is_null() { return -1; }
     let cstr = unsafe { CStr::from_ptr(path) };
     let p = match cstr.to_str() { Ok(s) => s, Err(_) => return -1 };
 
-    let file = match File::open(p) {
-        Ok(f) => f,
-        Err(_) => return -1,
-    };
+    // Fast-fail: magic check before paying for a full load
+    let file = match File::open(p) { Ok(f) => f, Err(_) => return -1 };
     let meta = match file.metadata() { Ok(m) => m, Err(_) => return -1 };
     let size = meta.len();
     if size < 16 { return -1; }
-
-    // mmap first page and check magic
     let mmap = unsafe { match MmapOptions::new().len(16).map(&file) { Ok(m) => m, Err(_) => return -1 } };
     let is_gguf = mmap.len() >= 4 && &mmap[0..4] == b"GGUF";
     let version = if mmap.len() >= 8 {
         u32::from_le_bytes([mmap[4], mmap[5], mmap[6], mmap[7]])
     } else { 0 };
+    drop(mmap); drop(file);
+    if !is_gguf {
+        if let Ok(mut g) = LAST_INFO.lock() {
+            *g = Some(LoadedInfo { path: p.to_string(), size, is_gguf: false, version });
+        }
+        return -2;
+    }
 
-    let info = LoadedInfo { path: p.to_string(), size, is_gguf, version };
-    if let Ok(mut guard) = LAST_MODEL.lock() { *guard = Some(info); }
+    // Init backend once per process
+    {
+        let mut be = match BACKEND.lock() { Ok(g) => g, Err(_) => return -1 };
+        if be.is_none() {
+            *be = Some(match LlamaBackend::init() { Ok(b) => b, Err(_) => return -1 });
+        }
+    }
 
-    if is_gguf { 0 } else { -2 } // -2 = file exists but not GGUF magic
+    // Full load (weights are mmapped by llama.cpp — cheap to open, pages in on use)
+    let model = {
+        let be_guard = match BACKEND.lock() { Ok(g) => g, Err(_) => return -1 };
+        let backend = match be_guard.as_ref() { Some(b) => b, None => return -1 };
+        match LlamaModel::load_from_file(backend, p, &Default::default()) { Ok(m) => m, Err(_) => return -3 }
+    };
+
+    let slot = ModelSlot { model, path: p.to_string(), size };
+    if let Ok(mut g) = LAST_INFO.lock() {
+        *g = info_of(Some(&slot));
+    }
+    if let Ok(mut g) = MODEL.lock() { *g = Some(slot); }
+    0
 }
 
 /// VFE = surprise + KL — mirrors physics-dialect calculate_vfe
@@ -64,154 +109,148 @@ pub extern "C" fn kai_curvature_to_temp(base_temp: f32, curvature: f32, alpha: f
 /// Version — caller must NOT free
 #[no_mangle]
 pub extern "C" fn kai_version() -> *const c_char {
-    static S: &[u8] = b"kai-bridge 0.3.0-real-gguf\0";
+    static S: &[u8] = b"kai-bridge 0.4.0-real-inference\0";
     S.as_ptr() as *const c_char
 }
 
-/// Info about loaded GGUF — for Kotlin to display
+/// Info about loaded GGUF — "path|size|is_gguf|version"
 #[no_mangle]
 pub extern "C" fn kai_last_gguf_info() -> *mut c_char {
-    let guard = match LAST_MODEL.lock() { Ok(g) => g, Err(_) => return std::ptr::null_mut() };
-    let info = match &*guard { Some(i) => i, None => return std::ptr::null_mut() };
-    let s = format!("{}|{}|{}|{}", info.path, info.size, info.is_gguf, info.version);
+    // Prefer live slot; fall back to last validation result (e.g. invalid file)
+    let guard = MODEL.lock().ok();
+    let info = guard.as_ref().and_then(|s| info_of(s.as_ref()))
+        .or_else(|| LAST_INFO.lock().ok().and_then(|g| g.clone()));
+    let info = match info { Some(i) => i, None => return std::ptr::null_mut() };
+    let s = format!("{}|{}|{}|{}", info.path, info.size, info.is_gguf as u32, info.version);
     match CString::new(s) { Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() }
 }
 
-/// Intent detection + real answers. Kai answers the QUESTION first; no signature footer (anti-repeat).
-/// Now with thinking step: Kai thinks (curvature → reasoning depth) before answering.
-fn compose_answer(prompt_lower: &str, preview: &str, temp: f32, vfe: f32, model_label: &str, real: bool, turn: u32) -> String {
-    // ---- thinking step: curvature determines reasoning depth, VFE determines exploration ----
-    // High curvature (novel) + high VFE (surprise) → deeper thinking, more exploratory
-    // This is the recursive Kai loop's thinking, transferred from desktop: g_ij → T' and VFE → tau
-    let thinking_depth = if vfe > 3.0 && temp > 1.0 { "deep" } else if vfe > 2.5 { "medium" } else { "quick" };
-    // ---- knowledge base: intent → answer variants (rotate by turn + model to stay organic) ----
-    // Model-aware: qwen is concise, llama is verbose, gemma is balanced, coder is code-focused, kai-pc is live
-    let model_hint = if model_label.contains("qwen2.5:0.5b") { " (qwen 0.5B — concise)" }
-        else if model_label.contains("qwen-coder") { " (qwen-coder — code focus)" }
-        else if model_label.contains("gemma") { " (gemma — balanced)" }
-        else if model_label.contains("llama") { " (llama — verbose)" }
-        else if model_label.contains("kai-pc") { " (kai-pc live)" }
-        else { "" };
-    fn pick(variants: Vec<&str>, turn: u32) -> String {
-        if variants.is_empty() { return String::new(); }
-        variants[(turn as usize) % variants.len()].to_string()
-    }
-
-    let body: String = if prompt_lower.contains("free energy principle") || (prompt_lower.contains("free energy") && prompt_lower.contains("principle")) {
-        pick(vec![
-            "The Free Energy Principle (Friston) says living systems survive by minimizing *surprise*: they build an internal model of the world and constantly update it so predictions match what they sense. \"Free energy\" is the mathematical bound on that surprise — minimize it and you stay alive and coherent.",
-            "Think of it as prediction-on-a-budget: your brain is always guessing what happens next, and free energy measures how wrong those guesses are. Organisms act to shrink that error — either by updating beliefs (perception) or changing the world (action).",
-            "Short version: everything alive tries not to be surprised. The Free Energy Principle formalizes this — perception, learning, and action are all just different ways of minimizing the same surprise signal.",
-        ], turn)
-    } else if prompt_lower.contains("variational free energy") || prompt_lower == "explain vfe" || prompt_lower.contains("what is vfe") || prompt_lower.contains("vfe in one sentence") {
-        pick(vec![
-            "VFE (Variational Free Energy) = surprise + uncertainty. Surprise: how wrong was my prediction? Uncertainty: how far is my belief from competence (the attractor)? High VFE → explore; low VFE → consolidate. Here it drives sampling temperature and compute.",
-            "In one line: VFE is how *off* the model currently is — both in what it predicted (surprise) and how far its beliefs sit from proven-good representations (KL). It's the dial that makes me explore when confused and focus when confident.",
-        ], turn)
-    } else if prompt_lower.contains("llm") && (prompt_lower.contains("5") || prompt_lower.contains("like i'm 5") || prompt_lower.contains("like im 5")) {
-        pick(vec![
-            "An LLM is a very well-read parrot with a calculator brain. It read almost the whole internet, and now it predicts the next word so well that the predictions look like understanding — like finishing a sentence a smart friend started.",
-            "Imagine autocomplete that read everything. It doesn't 'know' things like you do — it's astonishingly good at guessing what word comes next, and that trick ends up looking like conversation.",
-        ], turn)
-    } else if prompt_lower.contains("llm") || prompt_lower.contains("large language model") {
-        pick(vec![
-            "A Large Language Model is a neural network trained to predict the next token over trillions of words. That single objective, at scale, yields grammar, facts, translation, and reasoning-like behavior. It runs here on your phone as a quantized GGUF — no cloud.",
-            "It's next-word prediction taken seriously: scale up the training data and the network, and general ability emerges. The one on your phone is compressed into a GGUF file so it runs offline.",
-        ], turn)
-    } else if prompt_lower.contains("attractor") {
-        pick(vec![
-            "An attractor is a state a system keeps returning to — the 'groove' of its dynamics. In Kai, the attractor is a set of 173 vectors defining what a *good* internal representation looks like. The KL distance to it is the epistemic half of VFE.",
-            "Picture a ball rolling on a landscape with valleys: the valleys are attractors. Kai's attractor is the set of representations that historically scored well — the model 'rolls' toward them during learning.",
-        ], turn)
-    } else if prompt_lower.contains("python") && (prompt_lower.contains("rename") || prompt_lower.contains("script")) {
-        pick(vec![
-            "import os\nfor i, f in enumerate(sorted(os.listdir('.'))):\n    if f.endswith(('.txt','.png')):\n        os.rename(f, f'doc_{i:03d}{os.path.splitext(f)[1]}')\n# Renames to doc_000.txt, doc_001.png … dry-run by printing first.",
-            "Here's a compact version:\n\nimport os, pathlib\nfor i, p in enumerate(sorted(pathlib.Path('.').glob('*.{txt,png}'))):\n    p.rename(f'doc_{i:03d}{p.suffix}')\n\nAdd a print(p, '->', f'doc_{i:03d}{p.suffix}') before rename to preview.",
-        ], turn)
-    } else if prompt_lower.contains("rust") && (prompt_lower.contains("borrow") || prompt_lower.contains("debug")) {
-        pick(vec![
-            "The borrow checker rejects two writers, or a writer while readers exist. Fixes: 1) clone if cheap; 2) end the mutable borrow before the read (NLL helps); 3) RefCell/Mutex for interior mutability; 4) take &str instead of &String. Paste the exact error and I'll point at the line.",
-            "Classic causes: holding a mutable borrow across a later use, or mutating while iterating. Try scoping the borrow in { } so it drops early — Non-Lexical Lifetimes usually fixes it once the intent is clear.",
-        ], turn)
-    } else if prompt_lower.contains("hello") || prompt_lower.contains("hi") || prompt_lower.contains("hey") {
-        pick(vec![
-            "Hello! What are we into today — explaining something, writing code, or debugging?",
-            "Hey! Good to see you. Point me at a topic or a bug and I'll dig in.",
-            "Hi! I'm listening — science, code, or something in between?",
-        ], turn)
-    } else if prompt_lower.contains("who are you") || prompt_lower.contains("what are you") {
-        pick(vec![
-            "I'm Kai — an on-device assistant backed by a GGUF model (this one: qwen2.5 0.5B, 4-bit). My twist: a physics layer (VFE, curvature) modulates how I sample and how much compute I spend per answer. Everything stays on this phone.",
-            "Kai — local AI, no cloud. A quantized model plus a free-energy controller that decides how curious vs. careful I should be with each reply. Your chats and memories never leave the device.",
-        ], turn)
-    } else if prompt_lower.contains("summar") {
-        pick(vec![
-            "Summarize mode: paste the text or name the topic, and tell me the audience — beginner, dev, or researcher. I'll give a one-line gist, 3 key points, then what's uncertain.",
-            "Happy to summarize. Drop the content or the topic and pick a depth — I'll compress to the essence without losing the load-bearing details.",
-        ], turn)
-    } else if prompt_lower.contains("capital of france") {
-        "Paris — the capital of France, on the Seine, ~2M city proper.".to_string()
-    } else if prompt_lower.contains("2+2") || prompt_lower.contains("2 + 2") {
-        "4".to_string()
-    } else if prompt_lower.contains("capital of") {
-        // Generic capital
-        "That depends on the country — tell me which one and I'll give the capital, plus a bit of context if you want.".to_string()
-    } else if prompt_lower.trim_end().ends_with("?") {
-        // For general questions, try to give a direct answer, not a meta "Good question" template
-        // Extract the question topic and answer directly
-        let topic = preview.trim_end_matches('?').trim();
-        pick(vec![
-            format!("{topic} — here's the core: This is a general question that depends on context. If you give me a bit more detail (e.g., the domain or what you're trying to do), I can answer precisely.").as_str(),
-            format!("About \"{topic}\" — tell me your background (beginner/dev) and I'll tailor the answer.").as_str(),
-        ], turn)
+/// Chat template per model family — returns (template_fn_name applied prompt)
+fn apply_chat_template(model_name_lower: &str, user_text: &str) -> String {
+    if model_name_lower.contains("qwen") {
+        format!(
+            "<|im_start|>system\nYou are Kai, a helpful, direct assistant running fully offline on the user's phone. Answer the question asked — no filler, no meta commentary.<|im_end|>\n<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
+        )
+    } else if model_name_lower.contains("gemma") {
+        format!(
+            "<bos><start_of_turn>user\n{user_text}<end_of_turn>\n<start_of_turn>model\n"
+        )
+    } else if model_name_lower.contains("llama") {
+        format!(
+            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are Kai, a helpful offline assistant. Be direct.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        )
     } else {
-        // For non-questions, be direct and not canned
-        pick(vec![
-            format!("\"{preview}\" — noted. If you want me to explain, write code, or summarize, just say the word and the depth you want.").as_str(),
-            format!("Got it — \"{preview}\". What next: deeper theory, a hands-on example, or a summary?").as_str(),
-        ], turn)
-    };
-
-    // Thinking prefix for deep reasoning (transferred from desktop's recursive loop: g_ij → T' depth)
-    // High VFE/curvature → deeper thinking, but not spamming VFE signature
-    // Now also includes model_hint so different models give visibly different answers
-    let thinking_prefix = match thinking_depth {
-        "deep" => format!("🤔 Thinking deeply (high VFE/curvature){}…\n\n", model_hint),
-        "medium" if !model_hint.is_empty() => format!("{}:\n\n", model_hint.trim_start_matches(" (").trim_end_matches(")")),
-        _ => String::new(),
-    };
-    format!("{}{}", thinking_prefix, body)
+        // Generic fallback: raw text
+        format!("{user_text}\n")
+    }
 }
 
-/// Generate — GGUF-aware, answers the question, organic (no repeated signature)
+/// Stop sequences per family (rendered tokens we cut out of output)
+fn turn_ends_for(model_name_lower: &str) -> Vec<String> {
+    if model_name_lower.contains("qwen") {
+        vec!["<|im_end|>".into(), "<|im_start|>".into()]
+    } else if model_name_lower.contains("gemma") {
+        vec!["<end_of_turn>".into()]
+    } else if model_name_lower.contains("llama") {
+        vec!["<|eot_id|>".into(), "<|end_of_text|>".into()]
+    } else {
+        vec![]
+    }
+}
+
+/// Generate with the loaded model. Real token-by-token decoding.
+/// temp/vfe modulate sampling: high VFE → slightly more exploratory temperature.
 #[no_mangle]
 pub extern "C" fn kai_generate(prompt: *const c_char, temp: f32, vfe: f32) -> *mut c_char {
     if prompt.is_null() { return std::ptr::null_mut(); }
     let cstr = unsafe { CStr::from_ptr(prompt) };
-    let p = cstr.to_string_lossy();
-    let preview = if p.len() > 80 { format!("{}…", &p[..80]) } else { p.to_string() };
-    let lower = p.to_lowercase();
+    let p = match cstr.to_str() { Ok(s) => s, Err(_) => return std::ptr::null_mut() };
 
-    let (model_label, real) = {
-        let guard = LAST_MODEL.lock().ok();
-        match guard.and_then(|g| g.clone()) {
-            Some(info) if info.is_gguf => {
-                let name = std::path::Path::new(&info.path).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or(info.path.clone());
-                (format!("{} ({}MB v{} ✓)", name, info.size/1024/1024, info.version), true)
-            },
-            Some(info) => (format!("{} (invalid GGUF, {}MB) ✗", info.path, info.size/1024/1024), false),
-            None => ("no GGUF loaded (stub)".to_string(), false),
+    // Honest no-model answer — never fake content
+    let mut model_guard = match MODEL.lock() { Ok(g) => g, Err(_) => return std::ptr::null_mut() };
+    let slot = match model_guard.as_mut() {
+        Some(s) => s,
+        None => {
+            let msg = "⚠ No model loaded yet.\nTap the model name at the top → download qwen2.5:0.5b (free, ~400MB), then ask me anything.";
+            return match CString::new(msg) { Ok(s) => s.into_raw(), Err(_) => std::ptr::null_mut() };
         }
     };
 
-    // Turn counter for variant rotation (global, wraps)
-    static TURN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let turn = TURN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let model_name = std::path::Path::new(&slot.path)
+        .file_name().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let rendered = apply_chat_template(&model_name, p);
+    let turn_ends = turn_ends_for(&model_name);
 
-    let mut msg = compose_answer(&lower, &preview, temp, vfe, &model_label, real, turn);
-    if !real {
-        msg = format!("⚠ No model loaded — tap the model name (top) → ⬇ qwen2.5:0.5b (free, ~400MB).\n\n{}", msg);
-    }
+    // Physics: VFE nudges temperature (curious when surprised, focused when confident)
+    let vfe_norm = (vfe / 5.0).clamp(0.0, 1.5);
+    let eff_temp = (temp * (1.0 + 0.15 * vfe_norm)).clamp(0.1, 1.6);
+
+    // Backend + context
+    let result = (|| -> Result<String, Box<dyn std::error::Error>> {
+        let be_guard = BACKEND.lock()?;
+        let backend = be_guard.as_ref().ok_or("backend not init")?;
+
+        let n_ctx_train = slot.model.n_ctx_train();
+        let n_ctx = n_ctx_train.min(2048);
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(4) as i32;
+        let mut ctx = slot.model.new_context(
+            backend,
+            LlamaContextParams::default()
+                .with_n_ctx(std::num::NonZeroU32::new(n_ctx))
+                .with_n_threads(threads),
+        )?;
+
+        // Tokenize WITHOUT extra BOS (templates carry their own control tokens)
+        let tokens = slot.model.str_to_token(&rendered, AddBos::Never)?;
+        if tokens.is_empty() { return Ok(String::new()); }
+        let max_total = n_ctx as usize;
+        let tokens = if tokens.len() > max_total / 2 { tokens[tokens.len() - max_total / 2..].to_vec() } else { tokens };
+
+        let new_tokens_cap = 320usize;
+        let mut batch = LlamaBatch::new(tokens.len().max(512), 1);
+
+        // Prime with the full prompt
+        let last_idx = tokens.len() as i32 - 1;
+        for (i, t) in tokens.iter().enumerate() {
+            let is_last = i as i32 == last_idx;
+            batch.add(*t, i as i32, &[0], is_last)?;
+        }
+        ctx.decode(&mut batch)?;
+
+        let mut sampler = LlamaSampler::chain_simple(vec![
+            LlamaSampler::penalties(64, 1.12, 0.0, 0.0),
+            LlamaSampler::top_p(0.92, 16),
+            LlamaSampler::temp(eff_temp),
+            LlamaSampler::dist(1234),
+        ]);
+
+        let mut out = String::new();
+        let mut n_cur = tokens.len() as i32;
+        for _ in 0..new_tokens_cap {
+            let tok: LlamaToken = sampler.sample(&ctx, -1);
+            sampler.accept(tok);
+            if slot.model.is_eog_token(tok) { break; }
+
+            let piece = slot.model.token_to_str(tok, Special::Tokenize)?;
+            // Cut turn-end markers if tokenizer emits them as text
+            if turn_ends.iter().any(|e| piece.contains(e.as_str())) { break; }
+            out.push_str(&piece);
+
+            if n_cur >= max_total as i32 - 1 { break; }
+            batch.clear();
+            batch.add(tok, n_cur, &[0], true)?;
+            ctx.decode(&mut batch)?;
+            n_cur += 1;
+        }
+
+        Ok(out.trim().to_string())
+    })();
+
+    let msg = match result {
+        Ok(t) if t.trim().is_empty() => "…(empty generation — try rephrasing or downloading a bigger model)".to_string(),
+        Ok(t) => t,
+        Err(e) => format!("(inference error: {e})"),
+    };
 
     match CString::new(msg) { Ok(s) => s.into_raw(), Err(_) => std::ptr::null_mut() }
 }
@@ -224,20 +263,19 @@ pub extern "C" fn kai_free_string(s: *mut c_char) {
 }
 
 // ---------------------------------------------------------------------------
-// JNI exports — so Kotlin can call Rust directly via kai_bridge (no C++ link needed)
-// This fixes the absolute DT_NEEDED path issue on device (kai_jni → kai_bridge absolute path not found)
+// JNI exports — Kotlin calls Rust directly via kai_bridge
 // ---------------------------------------------------------------------------
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JString};
+use jni::objects::{JObject, JString};
 use jni::sys::{jfloat, jint, jstring};
 
 #[no_mangle]
 pub extern "system" fn Java_com_axiom_kai_KaiBridge_version<'local>(
     mut env: JNIEnv<'local>,
     _obj: JObject<'local>,
-) -> JString<'local> {
+) -> jstring {
     let s = unsafe { CStr::from_ptr(kai_version()).to_string_lossy().into_owned() };
-    env.new_string(s).unwrap_or_else(|_| env.new_string("kai-bridge 0.3.0").unwrap())
+    env.new_string(s).unwrap_or_else(|_| env.new_string("kai-bridge").unwrap()).into_raw()
 }
 
 #[no_mangle]

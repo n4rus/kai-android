@@ -8,11 +8,10 @@ description = "Kai Fusion Rust bridge for Android — exposes kai_load_gguf, cal
 crate-type = ["cdylib"]
 
 [dependencies]
-# Real GGUF: mmap + header validation (no heavy inference yet — VFE/physics wired)
-memmap2 = "0.9"
+# Real GGUF inference — actual llama.cpp, compiled for Android by cargo-ndk
+llama-cpp-2 = "0.1.154"
 jni = "0.21"
-# For future real inference: uncomment when wiring kai-fusion loader
-# kai-fusion = { path = "../../rust/kai-fusion" }
+memmap2 = "0.9"
 
 [profile.release]
 lto = true

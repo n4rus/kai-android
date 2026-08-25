@@ -14,6 +14,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -204,8 +205,10 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                         if (!downloaded && pct == null) {
                                             vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
                                         } else if (downloaded) {
-                                            val r = vm.tryLoadCurrentModel(ctx)
-                                            Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
+                                            vm.tryLoadCurrentModel(ctx) { r ->
+                                                Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                         pickerExpanded = false
                                     }
@@ -292,9 +295,14 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                     color = MaterialTheme.colorScheme.primary)
             }
 
-            // Chat list
+            // Chat list — opens at the LATEST message (no scrolling back through history)
+            val listState = rememberLazyListState()
+            LaunchedEffect(messages.size) {
+                if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1)
+            }
             LazyColumn(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp),
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 reverseLayout = false
             ) {
