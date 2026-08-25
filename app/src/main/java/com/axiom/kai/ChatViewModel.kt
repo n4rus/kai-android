@@ -358,18 +358,49 @@ class ChatViewModel : ViewModel() {
 
                 // Tier 3: recall top-k memories for this query → inject into Kai's prompt
                 val memBlock = memEngine.contextBlock(userText)
-                // Tools: web/file/shell — run locally, feed result as Kai's answer
-                val toolResult = Tools.tryTool(ctx, userText)
-                if (toolResult != null) {
-                    val toolMsg = ChatMessage(role = Role.KAI, text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool")
+                // Tools + natural language import/export (agent-recognizable, no manual file pick)
+                val lowerNl = userText.lowercase()
+                // Natural language export/import without needing exact command
+                if ((lowerNl.contains("export") && (lowerNl.contains("phone") || lowerNl.contains("history") || lowerNl.contains("download"))) ||
+                    lowerNl.contains("send to phone") || lowerNl.contains("transfer to phone")) {
+                    val f = java.io.File(ctx.getExternalFilesDir(null), "kai_state_export.json")
+                    val path = MemoryDbKtDarwinSyncExport(f.absolutePath, ctx)
+                    val msg = "✓ Exported Kai state to: $path\n  Pull to desktop via USB: adb pull $path ~/Downloads/\n  Or find it in Download/ on this phone."
+                    val toolMsg = ChatMessage(role = Role.KAI, text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool")
                     _messages.value = _messages.value + toolMsg
                     viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
-                            text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
+                            text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
+                    }
+                    _isGenerating.value = false
+                } else if ((lowerNl.contains("import") && (lowerNl.contains("phone") || lowerNl.contains("download") || lowerNl.contains("history") || lowerNl.contains("opencode"))) ||
+                    lowerNl.contains("sync from download") || lowerNl.contains("load from download")) {
+                    val count = scanAndImportDownloads(ctx)
+                    // Also try to auto-recover GGUF if present
+                    val mgr = ModelManager(ctx)
+                    val dlModels = mgr.downloadedModels()
+                    val msg = if (count > 0) "✓ Imported $count memories/chats from Download/. Also found ${dlModels.size} GGUF(s) on disk."
+                              else "No kai_state/session files found in Download/. Drop a kai_state_export.json or session-*.md there and say 'import' again. Found ${dlModels.size} GGUF(s) already."
+                    val toolMsg = ChatMessage(role = Role.KAI, text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool")
+                    _messages.value = _messages.value + toolMsg
+                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
+                            text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
                     }
                     _isGenerating.value = false
                 } else {
-                    continueSendAfterTools(ctx, db, memEngine, userText, curModel)
+                    val toolResult = Tools.tryTool(ctx, userText)
+                    if (toolResult != null) {
+                        val toolMsg = ChatMessage(role = Role.KAI, text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool")
+                        _messages.value = _messages.value + toolMsg
+                        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
+                                text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
+                        }
+                        _isGenerating.value = false
+                    } else {
+                        continueSendAfterTools(ctx, db, memEngine, userText, curModel)
+                    }
                 }
             } catch (t: Throwable) {
                 android.util.Log.e("ChatViewModel", "send pipeline failed: $t")

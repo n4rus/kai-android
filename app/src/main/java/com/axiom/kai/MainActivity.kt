@@ -30,7 +30,34 @@ import com.axiom.kai.ui.theme.KaiTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { KaiTheme { KaiScreen() } }
+        setContent { KaiTheme { KaiApp() } }
+    }
+}
+
+@Composable
+fun KaiApp() {
+    var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    androidx.compose.material3.Scaffold(
+        bottomBar = {
+            Row(
+                modifier = androidx.compose.ui.Modifier.fillMaxWidth().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant).padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                androidx.compose.material3.TextButton(onClick = { selectedTab = 0 }) {
+                    androidx.compose.material3.Text(if (selectedTab == 0) "💬 Chat" else "Chat", color = if (selectedTab == 0) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Gray)
+                }
+                androidx.compose.material3.TextButton(onClick = { selectedTab = 1 }) {
+                    androidx.compose.material3.Text(if (selectedTab == 1) "⌨️ Terminal" else "Terminal", color = if (selectedTab == 1) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Gray)
+                }
+            }
+        }
+    ) { pad ->
+        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(pad).fillMaxSize()) {
+            when (selectedTab) {
+                0 -> KaiScreen()
+                1 -> OpencodeTerminal(androidx.compose.ui.platform.LocalContext.current)
+            }
+        }
     }
 }
 
