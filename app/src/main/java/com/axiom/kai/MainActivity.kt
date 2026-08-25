@@ -84,6 +84,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var pickerExpanded by remember { mutableStateOf(false) }
     var historyExpanded by remember { mutableStateOf(false) }
     var showPhysics by remember { mutableStateOf(false) } // physics meters collapsed by default (beginner-friendly)
+    var showPcSettings by remember { mutableStateOf(false) }
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
@@ -91,14 +92,31 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             pickedImageUri = it
-            val msg = "📷 ${it.lastPathSegment ?: "image"} — describe this image"
-            vm.send(ctx, msg)
-            Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
+            // If kai-pc:live is selected, send image straight to PC's live terminal
+            if (vm.currentModel() == "kai-pc:live" && KaiPcClient.isConfigured(ctx)) {
+                val (b64, name) = KaiPcClient.fileToBase64(ctx, it) ?: (null to null)
+                if (b64 != null) {
+                    vm.sendPCImage(ctx, b64, name ?: "image")
+                    Toast.makeText(ctx, "📷 Sending image to Kai PC…", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                val msg = "📷 ${it.lastPathSegment ?: "image"} — describe this image"
+                vm.send(ctx, msg)
+                Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
+            }
         }
     }
-    // 📎 File explorer: pick ANY file → Kai reads content into context
+    // 📎 File explorer: pick ANY file → Kai reads content into context (or sends to PC if kai-pc)
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { u ->
+            if (vm.currentModel() == "kai-pc:live" && KaiPcClient.isConfigured(ctx)) {
+                val (b64, name) = KaiPcClient.fileToBase64(ctx, u) ?: (null to null)
+                if (b64 != null) {
+                    vm.sendPCFile(ctx, b64, name ?: "file")
+                    Toast.makeText(ctx, "📎 Sending file to Kai PC…", Toast.LENGTH_SHORT).show()
+                    return@rememberLauncherForActivityResult
+                }
+            }
             try {
                 val text = ctx.contentResolver.openInputStream(u)?.use { s ->
                     s.readBytes().toString(Charsets.UTF_8).take(6000)
@@ -135,6 +153,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Kai") },
                 actions = {
+                    // Settings for Kai PC live
+                    TextButton(onClick = { showPcSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleMedium) }
                     // Chat history drawer — continue a session or start new
                     TextButton(onClick = { historyExpanded = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) }
                     DropdownMenu(expanded = historyExpanded, onDismissRequest = { historyExpanded = false }) {
@@ -375,5 +395,42 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 ) { Text("Send") }
             }
         }
+    }
+
+    // Kai PC Settings dialog
+    if (showPcSettings) {
+        var host by remember { mutableStateOf(KaiPcClient.getHost(ctx) ?: "") }
+        var token by remember { mutableStateOf(KaiPcClient.getToken(ctx) ?: "") }
+        var scheme by remember { mutableStateOf(KaiPcClient.getScheme(ctx)) }
+        AlertDialog(
+            onDismissRequest = { showPcSettings = false },
+            title = { Text("Kai PC — Encrypted Live") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Phone sends text/file/image straight to your PC's live opencode session. PC shows it in its terminal.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text("PC IP:port (e.g. 192.168.1.10:8443)") }, singleLine = true)
+                    OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text("Token (Bearer)") }, singleLine = true)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Scheme:", style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(selected = scheme == "https", onClick = { scheme = "https" }, label = { Text("https") })
+                        Spacer(Modifier.width(4.dp))
+                        FilterChip(selected = scheme == "http", onClick = { scheme = "http" }, label = { Text("http") })
+                    }
+                    Text("On PC: python3 tools/kai_pc_server.py --port 8443 --token $token", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Or via USB: adb forward tcp:8443 tcp:8443 → use 127.0.0.1:8443", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    KaiPcClient.saveConfig(ctx, host, token, scheme)
+                    Toast.makeText(ctx, "Kai PC saved: $host", Toast.LENGTH_SHORT).show()
+                    showPcSettings = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPcSettings = false }) { Text("Cancel") }
+            }
+        )
     }
 }

@@ -9,16 +9,22 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class ModelEntry(
-    val tag: String, // e.g. "qwen2.5:0.5b"
-    val url: String, // Hugging Face GGUF direct URL
+    val tag: String, // e.g. "qwen2.5:0.5b" or "kai-pc:live"
+    val url: String, // Hugging Face GGUF URL or https://pc-ip:port for remote
     val fileName: String,
     val sizeMb: Int,
-    val description: String
+    val description: String,
+    val isRemote: Boolean = false // true → not a GGUF, is an encrypted live PC endpoint
 )
 
 object ModelCatalog {
     // Q4_K_M GGUFs — phone-sized. ALL FREE in v1 (models are never paywalled).
+    // Last entry is the ENCRYPTED LIVE PC — not a local GGUF, but appears as a model.
     val models = listOf(
+        ModelEntry(
+            "kai-pc:live", "https://pc.kai.local:8443", "kai-pc-live",
+            0, "🔒 Kai PC — encrypted live (this PC's opencode, phone is remote control)", isRemote = true
+        ),
         ModelEntry(
             "qwen2.5:0.5b", "https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
             "qwen2.5-0.5b-q4_k_m.gguf", 400, "0.5B — 800MB RAM, fastest, instant"
