@@ -490,6 +490,9 @@ class ChatViewModel : ViewModel() {
             try {
                 val memBlock = memEngine.contextBlock(userText)
                 val toolsBlock = Tools.toolsPrompt(ctx)
+                // Skill (Block B) — extra prompt when a skill matches
+                val skill = SkillRegistry.bestFor(userText)
+                val skillBlock = skill?.let { "\n[Skill:${it.id}:${it.name}] ${it.extraPrompt}\n\n" } ?: ""
 
                 // ---- SOUL + ROUTER + HISTORY (Blocks A/C/E) ----
                 // Router: "auto" picks the right voice (code/deep/fast) per task
@@ -525,7 +528,7 @@ class ChatViewModel : ViewModel() {
                 val chatArr = org.json.JSONArray()
                 val sysObj = org.json.JSONObject()
                 sysObj.put("role", "system")
-                sysObj.put("content", soulBlock + "\n\n" + knowledgeBlock + memBlock + toolsBlock)
+                sysObj.put("content", soulBlock + skillBlock + "\n\n" + knowledgeBlock + memBlock + toolsBlock)
                 chatArr.put(sysObj)
                 for (h in historyMsgs) {
                     val o = org.json.JSONObject()
@@ -544,9 +547,35 @@ class ChatViewModel : ViewModel() {
                     model = if (curModel == "auto") "auto→$genTag" else curModel)
                 _messages.value = _messages.value + kaiMsg
 
+                // Block G — Agent loop for implementation tasks (decompose→code→write→shell→fix)
+                android.util.Log.i("AgentLoop", "check isAgentTask for: " + userText.take(60) + " -> " + AgentLoop.isAgentTask(userText).toString())
+                if (AgentLoop.isAgentTask(userText)) {
+                    val agentText = AgentLoop.run(ctx, historyMsgs, soulBlock + skillBlock, toolsBlock, memBlock, knowledgeBlock,
+                        userText, genTag, genSlot, temp, vfe) { step ->
+                        _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + step) else it }
+                    }
+                    // AgentLoop streams via onStep; ensure final persisted (in case onStep didn't cover all)
+                    val finalAgent = _messages.value.find { it.id == kaiId }?.text?.takeIf { it.isNotBlank() } ?: agentText
+                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI",
+                            text = finalAgent, vfe = vfe, curvature = curvature, temp = temp,
+                            model = if (curModel == "auto") "auto→$genTag" else curModel,
+                            ts = System.currentTimeMillis()))
+                        if (System.currentTimeMillis() - lastSessionLog > 60_000L) {
+                            lastSessionLog = System.currentTimeMillis()
+                            val title = db.chatDao().chat(currentChatId)?.title ?: "chat"
+                            SessionLog.append(ctx, title, historyMsgs.size / 2 + 1, userText)
+                        }
+                    }
+                    _isGenerating.value = false
+                    return@launch
+                }
+
+                android.util.Log.i("KaiChat", "historyJson len=" + historyJson.length + " slot=" + genSlot + " model=" + genTag)
                 val streamer = StreamingGenerator(ctx)
                 streamer.streamChat(historyJson, genSlot, temp, vfe,
                     onToken = { tok ->
+                        // Batch updates slightly to avoid recomposition storm on long answers (freeze fix)
                         _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + tok) else it }
                     },
                     onDone = {
