@@ -88,6 +88,7 @@ object AgentLoop {
                 try {
                     kotlinx.coroutines.withTimeout(75000L) { KaiBridge.generateChat(stepJson, temp, vfe, slot) }
                 } catch (t: Throwable) {
+                    try { KaiBridge.cancel(slot) } catch (_: Throwable) {}
                     android.util.Log.e("AgentLoop", "step generate failed/timeout: " + t.message)
                     if (userText.lowercase().contains("print") && userText.lowercase().contains("hello")) {
                         "```python workspace/hello.py\nprint(\"hello\")\n```"
@@ -105,11 +106,14 @@ object AgentLoop {
             // Also show the model's text for this step
             onStep(out.take(900) + "\n")
 
-            // 2b. Shell verification: if code was written, try a quick check
+            // 2b. Shell verification: if code was written, try a quick check (Termux-aware for python)
             val checkCmd = pickCheckCommand(writes, step)
             if (checkCmd != null) {
                 onStep("▸ Running: $checkCmd\n")
-                val shellOut = Tools.shell(ctx, checkCmd, timeoutMs = 12000)
+                val shellOut = if (checkCmd.contains("python3") && writes.any { it.first.endsWith(".py") }) {
+                    val fname = writes.first { it.first.endsWith(".py") }.first.removePrefix("workspace/")
+                    TermuxRunner.pythonOrCat(ctx, fname)
+                } else Tools.shell(ctx, checkCmd, timeoutMs = 12000)
                 onStep(shellOut.take(1200) + "\n")
                 val failed = shellOut.contains("error", true) || shellOut.contains("FAILED", true) ||
                     shellOut.contains("Traceback", true) || shellOut.contains("exit=1", true) ||

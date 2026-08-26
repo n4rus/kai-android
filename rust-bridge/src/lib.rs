@@ -6,6 +6,7 @@ use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::os::raw::c_char;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use memmap2::MmapOptions;
 
@@ -28,6 +29,14 @@ static BACKEND: Mutex<Option<LlamaBackend>> = Mutex::new(None);
 /// Two model slots: 0 = FAST (small, instant), 1 = DEEP (bigger, quality).
 /// Soul-fusion: the router in Kotlin picks the slot per task.
 static SLOTS: [Mutex<Option<ModelSlot>>; 2] = [Mutex::new(None), Mutex::new(None)];
+
+/// Cancellation flags per slot — set by kai_cancel, checked each decode iteration.
+static CANCEL_FLAGS: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
+
+#[no_mangle]
+pub extern "C" fn kai_cancel(slot: i32) {
+    CANCEL_FLAGS[slot.clamp(0, 1) as usize].store(true, Ordering::Relaxed);
+}
 
 fn slot_mutex(slot: i32) -> &'static Mutex<Option<ModelSlot>> {
     &SLOTS[(slot.clamp(0, 1)) as usize]
@@ -277,9 +286,15 @@ fn generate_with_slot(slot: i32, rendered: &str, temp: f32, vfe: f32) -> Result<
         LlamaSampler::dist(1234),
     ]);
 
+    // Clear any previous cancel for this slot
+    CANCEL_FLAGS[slot.clamp(0, 1) as usize].store(false, Ordering::Relaxed);
     let mut out = String::new();
     let mut n_cur = tokens.len() as i32;
     for _ in 0..new_tokens_cap {
+        if CANCEL_FLAGS[slot.clamp(0, 1) as usize].load(Ordering::Relaxed) {
+            CANCEL_FLAGS[slot.clamp(0, 1) as usize].store(false, Ordering::Relaxed);
+            break;
+        }
         let tok: LlamaToken = sampler.sample(&ctx, -1);
         sampler.accept(tok);
         if model.is_eog_token(tok) { break; }
@@ -478,6 +493,15 @@ pub extern "system" fn Java_com_axiom_kai_KaiBridge_lastGgufInfo<'local>(
     let s = cstr.to_string_lossy().into_owned();
     unsafe { let _ = CString::from_raw(ptr); }
     env.new_string(s).map(|j| j.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_cancel<'local>(
+    _env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    slot: jint,
+) {
+    kai_cancel(slot);
 }
 
 #[no_mangle]

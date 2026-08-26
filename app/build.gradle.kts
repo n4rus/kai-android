@@ -23,7 +23,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 2
-        versionName = "0.3.1-agent-skills"
+        versionName = "0.3.2-gemini-termux"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -86,6 +86,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0") // PDF text extraction (desktop ingest parity)
+    implementation("com.google.android.gms:play-services-auth:20.7.0") // Google Sign-In for Gemini
     implementation("androidx.compose.ui:ui:1.6.2")
     implementation("androidx.compose.ui:ui-tooling-preview:1.6.2")
     implementation("androidx.compose.material3:material3:1.2.0")

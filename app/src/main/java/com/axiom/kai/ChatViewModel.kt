@@ -488,6 +488,42 @@ class ChatViewModel : ViewModel() {
     private fun continueSendAfterTools(ctx: Context, db: KaiDb, memEngine: MemoryEngine, userText: String, curModel: String) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
+                // Gemini remote models — after Google login, free
+                if (curModel.startsWith("gemini:")) {
+                    if (!GeminiClient.isLoggedIn(ctx)) {
+                        val msg = "⚠ Please sign in with Google first to use Gemini.\nTap ✦ → Sign in with Google, then paste your free API key from aistudio.google.com → Gemini models unlock."
+                        val m = ChatMessage(role = Role.KAI, text = msg, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
+                        _messages.value = _messages.value + m
+                        db.messageDao().insert(MessageEntity(id = m.id, chatId = currentChatId, role = "KAI", text = msg, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
+                        _isGenerating.value = false
+                        return@launch
+                    }
+                    if (!GeminiClient.hasApiKey(ctx)) {
+                        val msg = "⚠ Gemini API key not set.\nGet a free key at aistudio.google.com → paste it in ✦ → Gemini API key."
+                        val m = ChatMessage(role = Role.KAI, text = msg, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
+                        _messages.value = _messages.value + m
+                        db.messageDao().insert(MessageEntity(id = m.id, chatId = currentChatId, role = "KAI", text = msg, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
+                        _isGenerating.value = false
+                        return@launch
+                    }
+                    val soulBlockTmp = Soul.build(ctx, memEngine, curModel)
+                    val memTmp = memEngine.contextBlock(userText)
+                    val knowTmp = Knowledge.contextBlock(ctx, userText)
+                    val histTmp = db.messageDao().messagesOnce(currentChatId).takeLast(12).filter { it.role == "USER" || it.role == "KAI" }
+                    val arrTmp = org.json.JSONArray()
+                    arrTmp.put(org.json.JSONObject().put("role", "system").put("content", soulBlockTmp + knowTmp + memTmp + Tools.toolsPrompt(ctx)))
+                    for (h in histTmp) arrTmp.put(org.json.JSONObject().put("role", if (h.role == "USER") "user" else "assistant").put("content", h.text.take(1500)))
+                    arrTmp.put(org.json.JSONObject().put("role", "user").put("content", userText))
+                    val gemModel = if (curModel == "gemini:pro") "gemini-1.5-pro" else "gemini-1.5-flash"
+                    val out = GeminiClient.generate(ctx, arrTmp.toString(), gemModel)
+                    val kaiId = java.util.UUID.randomUUID().toString()
+                    val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = out, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
+                    _messages.value = _messages.value + kaiMsg
+                    db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI", text = out, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
+                    _isGenerating.value = false
+                    return@launch
+                }
+
                 val memBlock = memEngine.contextBlock(userText)
                 val toolsBlock = Tools.toolsPrompt(ctx)
                 // Skill (Block B) — extra prompt when a skill matches

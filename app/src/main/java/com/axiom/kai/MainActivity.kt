@@ -89,6 +89,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var historyExpanded by remember { mutableStateOf(false) }
     var showPhysics by remember { mutableStateOf(false) } // physics meters collapsed by default (beginner-friendly)
     var showPcSettings by remember { mutableStateOf(false) }
+    var showGeminiSettings by remember { mutableStateOf(false) }
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
@@ -108,6 +109,12 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 vm.send(ctx, msg)
                 Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+    val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        GoogleAuthManager.handleResult(ctx, res.data) { ok, msg ->
+            Toast.makeText(ctx, if (ok) "Google ✓ $msg — now paste Gemini API key" else "Sign-in failed: $msg", Toast.LENGTH_SHORT).show()
+            if (ok) showGeminiSettings = true
         }
     }
     // 📎 File explorer: pick ANY file → Kai reads content into context (or sends to PC if kai-pc)
@@ -168,6 +175,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Kai") },
                 actions = {
+                    // Gemini (Google login)
+                    TextButton(onClick = { showGeminiSettings = true }) { Text("✦", style = MaterialTheme.typography.titleMedium) }
                     // Settings for Kai PC live
                     TextButton(onClick = { showPcSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleMedium) }
                     // Chat history drawer — continue a session or start new
@@ -495,6 +504,42 @@ Column(Modifier.padding(12.dp)) {
             dismissButton = {
                 TextButton(onClick = { showPcSettings = false }) { Text("Cancel") }
             }
+        )
+    }
+    if (showGeminiSettings) {
+        var apiKey by remember { mutableStateOf(GeminiClient.getApiKey(ctx) ?: "") }
+        val isIn = GeminiClient.isLoggedIn(ctx) || GoogleAuthManager.isSignedIn(ctx)
+        AlertDialog(
+            onDismissRequest = { showGeminiSettings = false },
+            title = { Text("Gemini — Google (free after login)") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Sign in with Google to unlock Gemini Flash/Pro (free tier). Models appear in the picker after login.", style = MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isIn) {
+                            Text("✓ Signed in", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = { GoogleAuthManager.signOut(ctx) { Toast.makeText(ctx, "Signed out", Toast.LENGTH_SHORT).show() } }) { Text("Sign out") }
+                        } else {
+                            Button(onClick = { googleSignInLauncher.launch(GoogleAuthManager.signInIntent(ctx)) }) { Text("Sign in with Google") }
+                        }
+                    }
+                    OutlinedTextField(value = apiKey, onValueChange = { apiKey = it }, label = { Text("Gemini API key (aistudio.google.com)") }, singleLine = true)
+                    Text("Get free key: aistudio.google.com → Create API key → paste here", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (GeminiClient.hasApiKey(ctx)) Text("✓ API key saved", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (apiKey.isNotBlank()) {
+                        GeminiClient.setApiKey(ctx, apiKey)
+                        GeminiClient.setLoggedIn(ctx, true)
+                        Toast.makeText(ctx, "Gemini ready — pick gemini:flash/pro in the model list", Toast.LENGTH_SHORT).show()
+                    }
+                    showGeminiSettings = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showGeminiSettings = false }) { Text("Close") } }
         )
     }
 }

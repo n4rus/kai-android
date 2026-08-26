@@ -19,11 +19,19 @@ data class ModelEntry(
 
 object ModelCatalog {
     // Q4_K_M GGUFs — phone-sized. ALL FREE in v1 (models are never paywalled).
-    // Last entry is the ENCRYPTED LIVE PC — not a local GGUF, but appears as a model.
+    // Remote models: kai-pc:live and gemini (after Google login, free).
     val models = listOf(
         ModelEntry(
             "kai-pc:live", "https://pc.kai.local:8443", "kai-pc-live",
             0, "🔒 Kai PC — encrypted live (this PC's opencode, phone is remote control)", isRemote = true
+        ),
+        ModelEntry(
+            "gemini:flash", "https://generativelanguage.googleapis.com", "gemini-flash",
+            0, "✦ Gemini Flash — Google, free after login", isRemote = true
+        ),
+        ModelEntry(
+            "gemini:pro", "https://generativelanguage.googleapis.com", "gemini-pro",
+            0, "✦ Gemini Pro — Google, free after login", isRemote = true
         ),
         ModelEntry(
             "qwen2.5:0.5b", "https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
