@@ -523,6 +523,24 @@ class ChatViewModel : ViewModel() {
                     _isGenerating.value = false
                     return@launch
                 }
+                // Other remote LLMs — DeepSeek / GPT / Qwen / Claude (API key gated, via RemoteLLMClient)
+                if (curModel.startsWith("deepseek:") || curModel.startsWith("gpt:") || curModel.startsWith("qwen:") && curModel !in listOf("qwen2.5:0.5b", "qwen2.5-coder:3b", "qwen2.5:7b") || curModel.startsWith("claude:")) {
+                    val soulTmp = Soul.build(ctx, memEngine, curModel)
+                    val memTmp2 = memEngine.contextBlock(userText)
+                    val knowTmp2 = Knowledge.contextBlock(ctx, userText)
+                    val hist2 = db.messageDao().messagesOnce(currentChatId).takeLast(12).filter { it.role == "USER" || it.role == "KAI" }
+                    val arr2 = org.json.JSONArray()
+                    arr2.put(org.json.JSONObject().put("role", "system").put("content", soulTmp + knowTmp2 + memTmp2 + Tools.toolsPrompt(ctx)))
+                    for (h in hist2) arr2.put(org.json.JSONObject().put("role", if (h.role == "USER") "user" else "assistant").put("content", h.text.take(1500)))
+                    arr2.put(org.json.JSONObject().put("role", "user").put("content", userText))
+                    val out2 = RemoteLLMClient.generate(ctx, arr2.toString(), curModel)
+                    val kaiId2 = java.util.UUID.randomUUID().toString()
+                    val kaiMsg2 = ChatMessage(id = kaiId2, role = Role.KAI, text = out2, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
+                    _messages.value = _messages.value + kaiMsg2
+                    db.messageDao().insert(MessageEntity(id = kaiId2, chatId = currentChatId, role = "KAI", text = out2, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
+                    _isGenerating.value = false
+                    return@launch
+                }
 
                 val memBlock = memEngine.contextBlock(userText)
                 val toolsBlock = Tools.toolsPrompt(ctx)

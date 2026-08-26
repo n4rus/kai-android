@@ -33,6 +33,14 @@ object ModelCatalog {
             "gemini:pro", "https://generativelanguage.googleapis.com", "gemini-pro",
             0, "✦ Gemini Pro — Google, free after login", isRemote = true
         ),
+        ModelEntry("deepseek:chat", "https://api.deepseek.com", "deepseek-chat", 0, "DeepSeek Chat — via API key", isRemote = true),
+        ModelEntry("deepseek:reasoner", "https://api.deepseek.com", "deepseek-reasoner", 0, "DeepSeek Reasoner — via API key", isRemote = true),
+        ModelEntry("gpt:4o", "https://api.openai.com", "gpt-4o", 0, "GPT-4o — OpenAI, via API key", isRemote = true),
+        ModelEntry("gpt:4o-mini", "https://api.openai.com", "gpt-4o-mini", 0, "GPT-4o mini — OpenAI, via API key", isRemote = true),
+        ModelEntry("qwen:plus", "https://dashscope.aliyuncs.com", "qwen-plus", 0, "Qwen Plus — Alibaba, via API key", isRemote = true),
+        ModelEntry("qwen:turbo", "https://dashscope.aliyuncs.com", "qwen-turbo", 0, "Qwen Turbo — Alibaba, via API key", isRemote = true),
+        ModelEntry("claude:sonnet", "https://api.anthropic.com", "claude-sonnet", 0, "Claude 3.5 Sonnet — Anthropic, via API key", isRemote = true),
+        ModelEntry("claude:opus", "https://api.anthropic.com", "claude-opus", 0, "Claude 3 Opus — Anthropic, via API key", isRemote = true),
         ModelEntry(
             "qwen2.5:0.5b", "https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
             "qwen2.5-0.5b-q4_k_m.gguf", 400, "0.5B — 800MB RAM, fastest, instant"

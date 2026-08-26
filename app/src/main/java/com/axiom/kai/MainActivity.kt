@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -254,9 +256,11 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                             models.forEach { e ->
                                 val downloaded = downloadState[e.tag] == true
                                 val pct = progress[e.tag]
+                                val isRemote = e.isRemote
                                 DropdownMenuItem(
                                     text = {
                                         Text(when {
+                                            isRemote -> "${e.tag} ✦"
                                             downloaded -> "${e.tag} ✓"
                                             pct != null -> "${e.tag} ⬇ ${pct}%"
                                             else -> "${e.tag} ⬇ ${e.sizeMb}MB"
@@ -264,7 +268,26 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     },
                                     onClick = {
                                         vm.setModel(e.tag)
-                                        if (!downloaded && pct == null) {
+                                        if (isRemote) {
+                                            if (e.tag.startsWith("gemini:")) {
+                                                if (!GeminiClient.isLoggedIn(ctx) || !GeminiClient.hasApiKey(ctx)) {
+                                                    Toast.makeText(ctx, "Tap ✦ to set up Gemini (Google login + API key)", Toast.LENGTH_SHORT).show()
+                                                    showGeminiSettings = true
+                                                } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val prov = when {
+                                                    e.tag.startsWith("deepseek:") -> "deepseek"
+                                                    e.tag.startsWith("gpt:") -> "openai"
+                                                    e.tag.startsWith("qwen:") -> "qwen"
+                                                    e.tag.startsWith("claude:") -> "claude"
+                                                    else -> ""
+                                                }
+                                                if (prov.isNotEmpty() && !RemoteLLMClient.hasKey(ctx, prov)) {
+                                                    Toast.makeText(ctx, "Tap ✦ → set ${prov.uppercase()} API key for ${e.tag}", Toast.LENGTH_SHORT).show()
+                                                    showGeminiSettings = true
+                                                } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else if (!downloaded && pct == null) {
                                             vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
                                         } else if (downloaded) {
                                             Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
@@ -507,14 +530,18 @@ Column(Modifier.padding(12.dp)) {
         )
     }
     if (showGeminiSettings) {
-        var apiKey by remember { mutableStateOf(GeminiClient.getApiKey(ctx) ?: "") }
+        var gemKey by remember { mutableStateOf(GeminiClient.getApiKey(ctx) ?: "") }
+        var dsKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "deepseek") ?: "") }
+        var gptKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "openai") ?: "") }
+        var qwenKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "qwen") ?: "") }
+        var claudeKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "claude") ?: "") }
         val isIn = GeminiClient.isLoggedIn(ctx) || GoogleAuthManager.isSignedIn(ctx)
         AlertDialog(
             onDismissRequest = { showGeminiSettings = false },
-            title = { Text("Gemini — Google (free after login)") },
+            title = { Text("Remote LLMs — API keys") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Sign in with Google to unlock Gemini Flash/Pro (free tier). Models appear in the picker after login.", style = MaterialTheme.typography.bodySmall)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Gemini (Google) — free after login", style = MaterialTheme.typography.labelMedium)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isIn) {
                             Text("✓ Signed in", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
@@ -524,18 +551,28 @@ Column(Modifier.padding(12.dp)) {
                             Button(onClick = { googleSignInLauncher.launch(GoogleAuthManager.signInIntent(ctx)) }) { Text("Sign in with Google") }
                         }
                     }
-                    OutlinedTextField(value = apiKey, onValueChange = { apiKey = it }, label = { Text("Gemini API key (aistudio.google.com)") }, singleLine = true)
-                    Text("Get free key: aistudio.google.com → Create API key → paste here", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (GeminiClient.hasApiKey(ctx)) Text("✓ API key saved", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                    OutlinedTextField(value = gemKey, onValueChange = { gemKey = it }, label = { Text("Gemini API key (aistudio.google.com)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (GeminiClient.hasApiKey(ctx)) Text("✓ Gemini key saved", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    Text("DeepSeek", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = dsKey, onValueChange = { dsKey = it }, label = { Text("DeepSeek API key (platform.deepseek.com)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text("GPT (OpenAI)", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = gptKey, onValueChange = { gptKey = it }, label = { Text("OpenAI API key (platform.openai.com)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text("Qwen (Alibaba DashScope)", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = qwenKey, onValueChange = { qwenKey = it }, label = { Text("DashScope API key (dashscope.console.aliyun.com)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text("Claude (Anthropic)", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = claudeKey, onValueChange = { claudeKey = it }, label = { Text("Anthropic API key (console.anthropic.com)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text("Keys stored locally only. Models appear as ✦ in picker after key saved.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (apiKey.isNotBlank()) {
-                        GeminiClient.setApiKey(ctx, apiKey)
-                        GeminiClient.setLoggedIn(ctx, true)
-                        Toast.makeText(ctx, "Gemini ready — pick gemini:flash/pro in the model list", Toast.LENGTH_SHORT).show()
-                    }
+                    if (gemKey.isNotBlank()) { GeminiClient.setApiKey(ctx, gemKey); GeminiClient.setLoggedIn(ctx, true) }
+                    if (dsKey.isNotBlank()) RemoteLLMClient.setKey(ctx, "deepseek", dsKey)
+                    if (gptKey.isNotBlank()) RemoteLLMClient.setKey(ctx, "openai", gptKey)
+                    if (qwenKey.isNotBlank()) RemoteLLMClient.setKey(ctx, "qwen", qwenKey)
+                    if (claudeKey.isNotBlank()) RemoteLLMClient.setKey(ctx, "claude", claudeKey)
+                    Toast.makeText(ctx, "Keys saved — pick models from ✦ list", Toast.LENGTH_SHORT).show()
                     showGeminiSettings = false
                 }) { Text("Save") }
             },
