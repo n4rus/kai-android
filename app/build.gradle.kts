@@ -23,7 +23,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 2
-        versionName = "0.3.3-all-llms"
+        versionName = "0.3.4-login-menu"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {

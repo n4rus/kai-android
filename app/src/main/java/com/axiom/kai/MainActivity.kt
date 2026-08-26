@@ -172,18 +172,26 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         }
     }
 
-    Scaffold(
+Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Kai") },
                 actions = {
-                    // Gemini (Google login)
-                    TextButton(onClick = { showGeminiSettings = true }) { Text("✦", style = MaterialTheme.typography.titleMedium) }
                     // Settings for Kai PC live
                     TextButton(onClick = { showPcSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleMedium) }
                     // Chat history drawer — continue a session or start new
                     TextButton(onClick = { historyExpanded = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) }
                     DropdownMenu(expanded = historyExpanded, onDismissRequest = { historyExpanded = false }) {
+                        // Google Sign-In / API Keys — always accessible in settings drawer
+                        DropdownMenuItem(
+                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("✦", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Google Sign-In & API Keys", style = MaterialTheme.typography.bodyMedium)
+                            }},
+                            onClick = { showGeminiSettings = true; historyExpanded = false }
+                        )
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
                         DropdownMenuItem(
                             text = { Text("✚ New chat") },
                             onClick = { vm.newChat(ctx); historyExpanded = false }
