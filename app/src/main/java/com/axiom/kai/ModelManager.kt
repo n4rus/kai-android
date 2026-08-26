@@ -200,9 +200,57 @@ class ModelManager(private val ctx: Context) {
         return partialBytes(entry) > 0L
     }
 
-    fun loadInRust(entry: ModelEntry): Int {
+    fun loadInRust(entry: ModelEntry, slot: Int = 0): Int {
         val f = localFile(entry)
         if (!f.exists()) return -1
-        return try { KaiBridge.loadGguf(f.absolutePath) } catch (_: Throwable) { -1 }
+        return try { KaiBridge.loadGgufSlot(slot, f.absolutePath) } catch (_: Throwable) { -1 }
+    }
+
+    /** True if the given entry's file is already loaded into the given slot */
+    fun isLoadedInSlot(entry: ModelEntry, slot: Int): Boolean {
+        return try {
+            val info = KaiBridge.slotInfo(slot) ?: return false
+            val loadedPath = info.split("|").firstOrNull() ?: return false
+            loadedPath == localFile(entry).absolutePath
+        } catch (_: Throwable) { false }
+    }
+}
+
+/**
+ * AUTO ROUTER (Block E — soul-fusion). Picks the right voice per task:
+ * code → coder model, deep reasoning → biggest downloaded general model, else fast.
+ * Returns (tag, slot) or null if only kai-pc/fast available (caller keeps current).
+ */
+object ModelRouter {
+    private val CODE_MARKERS = listOf("def ", "fun ", "class ", "import ", "#include", "function ",
+        "error", "exception", "stack trace", "compile", "debug", "bug", "syntax", "refactor",
+        "python", "kotlin", "rust", "javascript", "sql", "code", "script", "regex")
+    private val DEEP_MARKERS = listOf("explain", "why ", "how does", "design", "architecture",
+        "compare", "analyze", "physics", "math", "proof", "theory", "principle", "trade-off",
+        "strategy", "plan ", "step by step")
+    private val DEEP_PREF = listOf("gemma2:2b", "llama3.2:3b", "qwen2.5:7b", "llama3:8b", "gemma2:9b")
+    private val CODE_PREF = listOf("qwen2.5-coder:3b")
+    const val FAST_TAG = "qwen2.5:0.5b"
+
+    fun route(userText: String, mgr: ModelManager): Pair<String, Int>? {
+        val lower = userText.lowercase()
+        val isCode = CODE_MARKERS.any { lower.contains(it) }
+        val isDeep = userText.length > 220 || DEEP_MARKERS.any { lower.contains(it) }
+        if (isCode) {
+            CODE_PREF.firstOrNull { tag ->
+                val e = ModelCatalog.byTag(tag)
+                e != null && mgr.isDownloaded(e)
+            }?.let { return it to 1 }
+        }
+        if (isDeep) {
+            DEEP_PREF.firstOrNull { tag ->
+                val e = ModelCatalog.byTag(tag)
+                e != null && mgr.isDownloaded(e)
+            }?.let { return it to 1 }
+        }
+        // Fast path: always slot 0
+        val fast = ModelCatalog.byTag(FAST_TAG)
+        if (fast != null && mgr.isDownloaded(fast)) return FAST_TAG to 0
+        return null
     }
 }

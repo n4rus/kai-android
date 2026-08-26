@@ -54,6 +54,10 @@ interface ChatDao {
     fun chats(): Flow<List<ChatEntity>>
     @Query("SELECT * FROM chats WHERE id = :id")
     fun chat(id: String): ChatEntity?
+    @Query("SELECT * FROM chats ORDER BY updatedAt DESC")
+    fun chatsOnce(): List<ChatEntity>
+    @Query("SELECT COUNT(*) FROM chats")
+    fun count(): Int
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(chat: ChatEntity)
     @Query("DELETE FROM chats WHERE id = :id")
@@ -68,6 +72,8 @@ interface MessageDao {
     fun messages(chatId: String): Flow<List<MessageEntity>>
     @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY ts ASC")
     fun messagesOnce(chatId: String): List<MessageEntity>
+    @Query("SELECT * FROM messages WHERE text LIKE '%' || :q || '%' ORDER BY ts DESC LIMIT 50")
+    fun search(q: String): List<MessageEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(m: MessageEntity)
     @Query("UPDATE messages SET text = :text WHERE id = :id")
@@ -172,9 +178,14 @@ class MemoryEngine(private val ctx: Context) {
     fun setUserName(n: String) { prefs.edit().putString("user_name", n).apply() }
     fun userName(): String? = prefs.getString("user_name", null)
 
-    // ---- Tier 3: embedding ----
-    // Real nomic GGUF embed is roadmap; here: hashed bag-of-bigrams → 128-dim, L2-normalized.
-    // Deterministic, fast, works offline. Swap-in point for nomic-embed-text GGUF later.
+    // ---- Tier 3: embedding (delegates to shared TextEmbed) ----
+    fun embed(text: String): FloatArray = TextEmbed.embed(text)
+    private fun cosine(a: FloatArray, bJson: String): Float = TextEmbed.cosineJson(a, bJson)
+}
+
+/** Hashed bag-of-bigrams → 128-dim, L2-normalized. Deterministic, offline.
+ *  Shared by MemoryEngine (facts) and Knowledge (ingested passages). Swap-in point for nomic-embed GGUF later. */
+object TextEmbed {
     fun embed(text: String): FloatArray {
         val dim = 128
         val v = FloatArray(dim)
@@ -184,7 +195,6 @@ class MemoryEngine(private val ctx: Context) {
             hashInto(v, t1, 1.0f)
             if (i + 1 < toks.size) hashInto(v, t1 + "_" + toks[i+1], 0.6f)
         }
-        // L2 normalize
         var norm = 0f
         for (x in v) norm += x * x
         norm = kotlin.math.sqrt(norm)
@@ -200,7 +210,7 @@ class MemoryEngine(private val ctx: Context) {
         v[idx] += sign * w
     }
 
-    private fun cosine(a: FloatArray, bJson: String): Float {
+    fun cosineJson(a: FloatArray, bJson: String): Float {
         val b = bJson.split(",").mapNotNull { it.toFloatOrNull() }
         var dot = 0f
         val n = minOf(a.size, b.size)

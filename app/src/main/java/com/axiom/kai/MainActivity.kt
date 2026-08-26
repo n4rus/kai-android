@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -176,8 +177,39 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                             text = { Text("✚ New chat") },
                             onClick = { vm.newChat(ctx); historyExpanded = false }
                         )
+                        // Search across all messages (Block D drawer UX)
+                        var searchQ by remember { mutableStateOf("") }
+                        var searchResults by remember { mutableStateOf(emptyList<SearchHit>()) }
+                        androidx.compose.runtime.LaunchedEffect(searchQ) {
+                            if (searchQ.length >= 2) searchResults = vm.searchAll(ctx, searchQ)
+                            else searchResults = emptyList()
+                        }
+                        Column(modifier = Modifier.padding(8.dp).widthIn(min = 280.dp)) {
+                            OutlinedTextField(
+                                value = searchQ,
+                                onValueChange = { searchQ = it },
+                                label = { Text("Search your records…") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (searchQ.length >= 2 && searchResults.isEmpty()) {
+                                Text("no matches", style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(6.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            searchResults.take(8).forEach { h ->
+                                DropdownMenuItem(
+                                    text = { Text("• ${h.text.take(60).replace("\n", " ")} (${h.chatTitle})",
+                                        style = MaterialTheme.typography.bodySmall) },
+                                    onClick = {
+                                        vm.switchChat(ctx, h.chatId); historyExpanded = false; searchQ = ""
+                                    }
+                                )
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                        }
                         val chats = vm.chatList.collectAsState().value
-                        if (chats.isEmpty()) {
+                        if (chats.isEmpty() && searchQ.isBlank()) {
                             DropdownMenuItem(text = { Text("No history yet", color = MaterialTheme.colorScheme.onSurfaceVariant) }, onClick = {})
                         }
                         chats.forEach { c ->
@@ -202,6 +234,14 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                     Box {
                         TextButton(onClick = { pickerExpanded = true }) { Text(model, style = MaterialTheme.typography.labelLarge) }
                         DropdownMenu(expanded = pickerExpanded, onDismissRequest = { pickerExpanded = false }) {
+                            // AUTO router — picks the right voice per task
+                            DropdownMenuItem(
+                                text = { Text("auto (router) ✦", color = MaterialTheme.colorScheme.primary) },
+                                onClick = {
+                                    vm.setModel("auto"); pickerExpanded = false
+                                    Toast.makeText(ctx, "auto — code→coder, deep→best, else→fast", Toast.LENGTH_SHORT).show()
+                                }
+                            )
                             models.forEach { e ->
                                 val downloaded = downloadState[e.tag] == true
                                 val pct = progress[e.tag]
@@ -365,13 +405,16 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     }
                                 )
                         ) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(m.text.ifEmpty { if (isGhost) "↻ thinking…" else "…" }, style = MaterialTheme.typography.bodyMedium)
-                                if (showPhysics && m.vfe != null) {
-                                    Text("VFE %.1f · g %.2f · T %.2f".format(m.vfe, m.curvature ?: 0f, m.temp ?: 0f),
-                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+Column(Modifier.padding(12.dp)) {
+                            androidx.compose.foundation.text.selection.SelectionContainer {
+                                Text(m.text.ifEmpty { if (isGhost) "↻ thinking…" else "…" },
+                                    style = MaterialTheme.typography.bodyMedium)
                             }
+                            if (showPhysics && m.vfe != null) {
+                                Text("VFE %.1f · g %.2f · T %.2f".format(m.vfe, m.curvature ?: 0f, m.temp ?: 0f),
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         }
                         if (isGhost) {
                             Text("↻ Kai's deeper thought — use as prompt",

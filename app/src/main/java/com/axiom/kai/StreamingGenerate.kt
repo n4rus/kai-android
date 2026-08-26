@@ -7,20 +7,19 @@ import kotlinx.coroutines.flow.StateFlow
 // Real streaming: Rust generates GGUF-aware text, Kotlin streams word-by-word with VFE/temp pacing
 class StreamingGenerator(private val ctx: android.content.Context) {
 
-    // Stream a GGUF-aware response, emitting tokens via onToken
-    suspend fun stream(
-        prompt: String,
+    // Stream a history-aware response: Rust renders multi-turn per model family, Kotlin streams words
+    suspend fun streamChat(
+        historyJson: String,
+        slot: Int,
         temp: Float,
         vfe: Float,
         onToken: (String) -> Unit,
         onDone: () -> Unit
     ) {
         val full = try {
-            KaiBridge.generate(prompt, temp, vfe)
+            KaiBridge.generateChat(historyJson, temp, vfe, slot)
         } catch (_: Throwable) {
-            // Fallback if JNI not yet linked
-            if (vfe > 3) "[Kai VFE ${"%.1f".format(vfe)} T${"%.2f".format(temp)}] \"$prompt\" — high VFE, streaming…"
-            else "[Kai VFE ${"%.1f".format(vfe)}] \"$prompt\" — streaming…"
+            "[Kai] generation failed (JNI) — check model loaded"
         }
 
         // Real inference is done — stream out fast so text appears naturally
@@ -36,5 +35,19 @@ class StreamingGenerator(private val ctx: android.content.Context) {
             delay(baseDelayMs + (Math.random() * 20).toLong())
         }
         onDone()
+    }
+
+    // Legacy single-turn (compat: ghost recursion, PC paths)
+    suspend fun stream(
+        prompt: String,
+        temp: Float,
+        vfe: Float,
+        onToken: (String) -> Unit,
+        onDone: () -> Unit
+    ) {
+        val json = org.json.JSONArray().apply {
+            put(org.json.JSONObject().put("role", "user").put("content", prompt))
+        }.toString()
+        streamChat(json, 0, temp, vfe, onToken, onDone)
     }
 }

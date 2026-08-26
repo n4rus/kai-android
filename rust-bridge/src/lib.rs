@@ -24,9 +24,16 @@ struct ModelSlot {
 }
 
 static BACKEND: Mutex<Option<LlamaBackend>> = Mutex::new(None);
-static MODEL: Mutex<Option<ModelSlot>> = Mutex::new(None);
 
-/// Info string for Kotlin UI (kept even while model is in MODEL slot)
+/// Two model slots: 0 = FAST (small, instant), 1 = DEEP (bigger, quality).
+/// Soul-fusion: the router in Kotlin picks the slot per task.
+static SLOTS: [Mutex<Option<ModelSlot>>; 2] = [Mutex::new(None), Mutex::new(None)];
+
+fn slot_mutex(slot: i32) -> &'static Mutex<Option<ModelSlot>> {
+    &SLOTS[(slot.clamp(0, 1)) as usize]
+}
+
+/// Info string for Kotlin UI (kept even while model is in a slot)
 #[derive(Clone, Debug)]
 struct LoadedInfo {
     path: String,
@@ -36,19 +43,20 @@ struct LoadedInfo {
 }
 static LAST_INFO: Mutex<Option<LoadedInfo>> = Mutex::new(None);
 
-fn info_of(slot: Option<&ModelSlot>) -> Option<LoadedInfo> {
-    slot.map(|s| LoadedInfo {
-        path: s.path.clone(),
-        size: s.size,
-        is_gguf: true,
-        version: 3,
-    })
+fn info_of(path: &str, size: u64) -> LoadedInfo {
+    LoadedInfo { path: path.to_string(), size, is_gguf: true, version: 3 }
 }
 
-/// Load GGUF at path → 0 ok, -1 err
-/// Validates magic quickly via mmap, then hands the file to llama.cpp for a full load.
+/// Load GGUF at path → 0 ok, -1 err (slot 0 default)
 #[no_mangle]
 pub extern "C" fn kai_load_gguf(path: *const c_char) -> i32 {
+    kai_load_gguf_slot(0, path)
+}
+
+/// Load GGUF into a slot (0=fast, 1=deep) → 0 ok, -1 err
+/// Validates magic quickly via mmap, then hands the file to llama.cpp for a full load.
+#[no_mangle]
+pub extern "C" fn kai_load_gguf_slot(slot: i32, path: *const c_char) -> i32 {
     if path.is_null() { return -1; }
     let cstr = unsafe { CStr::from_ptr(path) };
     let p = match cstr.to_str() { Ok(s) => s, Err(_) => return -1 };
@@ -86,11 +94,13 @@ pub extern "C" fn kai_load_gguf(path: *const c_char) -> i32 {
         match LlamaModel::load_from_file(backend, p, &Default::default()) { Ok(m) => m, Err(_) => return -3 }
     };
 
-    let slot = ModelSlot { model, path: p.to_string(), size };
-    if let Ok(mut g) = LAST_INFO.lock() {
-        *g = info_of(Some(&slot));
+    let slot_data = ModelSlot { model, path: p.to_string(), size };
+    if slot == 0 {
+        if let Ok(mut g) = LAST_INFO.lock() {
+            *g = Some(info_of(p, size));
+        }
     }
-    if let Ok(mut g) = MODEL.lock() { *g = Some(slot); }
+    if let Ok(mut g) = slot_mutex(slot).lock() { *g = Some(slot_data); }
     0
 }
 
@@ -109,43 +119,41 @@ pub extern "C" fn kai_curvature_to_temp(base_temp: f32, curvature: f32, alpha: f
 /// Version — caller must NOT free
 #[no_mangle]
 pub extern "C" fn kai_version() -> *const c_char {
-    static S: &[u8] = b"kai-bridge 0.4.0-real-inference\0";
+    static S: &[u8] = b"kai-bridge 0.5.0-soul-fusion\0";
     S.as_ptr() as *const c_char
 }
 
-/// Info about loaded GGUF — "path|size|is_gguf|version"
+/// Info about loaded GGUF — "path|size|is_gguf|version" (slot 0)
 #[no_mangle]
 pub extern "C" fn kai_last_gguf_info() -> *mut c_char {
-    // Prefer live slot; fall back to last validation result (e.g. invalid file)
-    let guard = MODEL.lock().ok();
-    let info = guard.as_ref().and_then(|s| info_of(s.as_ref()))
-        .or_else(|| LAST_INFO.lock().ok().and_then(|g| g.clone()));
-    let info = match info { Some(i) => i, None => return std::ptr::null_mut() };
-    let s = format!("{}|{}|{}|{}", info.path, info.size, info.is_gguf as u32, info.version);
-    match CString::new(s) { Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() }
+    kai_slot_info(0)
 }
 
-/// Chat template per model family — returns (template_fn_name applied prompt)
+/// Info for a specific slot — "path|size|is_gguf|version" or null if empty
+#[no_mangle]
+pub extern "C" fn kai_slot_info(slot: i32) -> *mut c_char {
+    if let Ok(g) = slot_mutex(slot).lock() {
+        if let Some(ref s) = *g {
+            let info = info_of(&s.path, s.size);
+            let out = format!("{}|{}|{}|{}", info.path, info.size, info.is_gguf as u32, info.version);
+            return match CString::new(out) { Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() };
+        }
+    }
+    // Fall back to last validation result (slot 0 only, e.g. invalid file)
+    if slot == 0 {
+        if let Ok(g) = LAST_INFO.lock() {
+            if let Some(info) = g.clone() {
+                let s = format!("{}|{}|{}|{}", info.path, info.size, info.is_gguf as u32, info.version);
+                return match CString::new(s) { Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() };
+            }
+        }
+    }
+    std::ptr::null_mut()
+}
+
+/// Default system prompt (Kotlin's Soul block overrides this when provided)
 const KAI_SYSTEM: &str = "You are Kai, an offline AI companion running directly on the user's Android phone. You HAVE persistent memory: a local database stores facts the user told you (shown to you inside [Memory] blocks — treat them as things you remember) and your chat history survives restarts, so never claim you have no memory. Answer the question asked — direct and honest.";
 
-fn apply_chat_template(model_name_lower: &str, user_text: &str) -> String {
-    if model_name_lower.contains("qwen") {
-        format!(
-            "<|im_start|>system\n{KAI_SYSTEM}<|im_end|>\n<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
-        )
-    } else if model_name_lower.contains("gemma") {
-        format!(
-            "<bos><start_of_turn>user\n{KAI_SYSTEM}\n\n{user_text}<end_of_turn>\n<start_of_turn>model\n"
-        )
-    } else if model_name_lower.contains("llama") {
-        format!(
-            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{KAI_SYSTEM}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        )
-    } else {
-        // Generic fallback: raw text
-        format!("{user_text}\n")
-    }
-}
 
 /// Stop sequences per family (rendered tokens we cut out of output)
 fn turn_ends_for(model_name_lower: &str) -> Vec<String> {
@@ -160,97 +168,195 @@ fn turn_ends_for(model_name_lower: &str) -> Vec<String> {
     }
 }
 
-/// Generate with the loaded model. Real token-by-token decoding.
-/// temp/vfe modulate sampling: high VFE → slightly more exploratory temperature.
-#[no_mangle]
-pub extern "C" fn kai_generate(prompt: *const c_char, temp: f32, vfe: f32) -> *mut c_char {
-    if prompt.is_null() { return std::ptr::null_mut(); }
-    let cstr = unsafe { CStr::from_ptr(prompt) };
-    let p = match cstr.to_str() { Ok(s) => s, Err(_) => return std::ptr::null_mut() };
+/// Multi-turn chat rendering per model family.
+/// msgs: (role, content) with roles system|user|assistant.
+fn render_chat(model_name_lower: &str, msgs: &[(String, String)]) -> String {
+    // Ensure a system prompt exists — Kai's soul must always be present
+    let has_system = msgs.iter().any(|(r, _)| r == "system");
+    let mut m: Vec<(String, String)> = Vec::new();
+    if !has_system {
+        m.push(("system".into(), KAI_SYSTEM.into()));
+    }
+    m.extend(msgs.iter().cloned());
 
-    // Honest no-model answer — never fake content
-    let mut model_guard = match MODEL.lock() { Ok(g) => g, Err(_) => return std::ptr::null_mut() };
-    let slot = match model_guard.as_mut() {
-        Some(s) => s,
-        None => {
-            let msg = "⚠ No model loaded yet.\nTap the model name at the top → download qwen2.5:0.5b (free, ~400MB), then ask me anything.";
-            return match CString::new(msg) { Ok(s) => s.into_raw(), Err(_) => std::ptr::null_mut() };
+    if model_name_lower.contains("qwen") {
+        let mut s = String::new();
+        for (role, content) in &m {
+            s.push_str(&format!("<|im_start|>{role}\n{content}<|im_end|>\n"));
         }
+        s.push_str("<|im_start|>assistant\n");
+        s
+    } else if model_name_lower.contains("gemma") {
+        // gemma has no system role — fold system into first user turn
+        let mut s = String::from("<bos>");
+        let mut sys_pending = m.iter().find(|(r, _)| r == "system").map(|(_, c)| c.clone());
+        for (role, content) in &m {
+            match role.as_str() {
+                "system" => {}
+                "user" => {
+                    let mut c = content.clone();
+                    if let Some(sys) = sys_pending.take() {
+                        c = format!("{sys}\n\n{c}");
+                    }
+                    s.push_str(&format!("<start_of_turn>user\n{c}<end_of_turn>\n"));
+                }
+                _ => s.push_str(&format!("<start_of_turn>model\n{content}<end_of_turn>\n")),
+            }
+        }
+        s.push_str("<start_of_turn>model\n");
+        s
+    } else if model_name_lower.contains("llama") {
+        let mut s = String::from("<|begin_of_text|>");
+        for (role, content) in &m {
+            s.push_str(&format!("<|start_header_id|>{role}<|end_header_id|>\n\n{content}<|eot_id|>"));
+        }
+        s.push_str("<|start_header_id|>assistant<|end_header_id|>\n\n");
+        s
+    } else {
+        let mut s = String::new();
+        for (role, content) in &m {
+            s.push_str(&format!("{role}: {content}\n"));
+        }
+        s.push_str("assistant: ");
+        s
+    }
+}
+
+/// Core decode loop — rendered prompt → generated text, for the model in `slot`.
+fn generate_with_slot(slot: i32, rendered: &str, temp: f32, vfe: f32) -> Result<String, String> {
+    // Lock the slot for the whole generation (prevents unload mid-decode).
+    // Order: slot → backend. Load path never holds slot while taking backend, so no cycle.
+    let model_guard = slot_mutex(slot).lock().map_err(|_| "slot poisoned")?;
+    let model: &LlamaModel = match model_guard.as_ref() {
+        Some(s) => &s.model,
+        None => return Err("no model in slot".into()),
     };
 
-    let model_name = std::path::Path::new(&slot.path)
+    let model_name = std::path::Path::new(model_guard.as_ref().unwrap().path.as_str())
         .file_name().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
-    let rendered = apply_chat_template(&model_name, p);
     let turn_ends = turn_ends_for(&model_name);
 
     // Physics: VFE nudges temperature (curious when surprised, focused when confident)
     let vfe_norm = (vfe / 5.0).clamp(0.0, 1.5);
     let eff_temp = (temp * (1.0 + 0.15 * vfe_norm)).clamp(0.1, 1.6);
 
-    // Backend + context
-    let result = (|| -> Result<String, Box<dyn std::error::Error>> {
-        let be_guard = BACKEND.lock()?;
-        let backend = be_guard.as_ref().ok_or("backend not init")?;
+    let be_guard = BACKEND.lock().map_err(|_| "backend poisoned")?;
+    let backend = be_guard.as_ref().ok_or("backend not init")?;
 
-        let n_ctx_train = slot.model.n_ctx_train();
-        let n_ctx = n_ctx_train.min(2048);
-        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(4) as i32;
-        let mut ctx = slot.model.new_context(
-            backend,
-            LlamaContextParams::default()
-                .with_n_ctx(std::num::NonZeroU32::new(n_ctx))
-                .with_n_threads(threads),
-        )?;
+    let n_ctx_train = model.n_ctx_train();
+    let n_ctx = n_ctx_train.min(2048);
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(4) as i32;
+    let mut ctx = model.new_context(
+        backend,
+        LlamaContextParams::default()
+            .with_n_ctx(std::num::NonZeroU32::new(n_ctx))
+            .with_n_threads(threads),
+    ).map_err(|e| e.to_string())?;
 
-        // Tokenize WITHOUT extra BOS (templates carry their own control tokens)
-        let tokens = slot.model.str_to_token(&rendered, AddBos::Never)?;
-        if tokens.is_empty() { return Ok(String::new()); }
-        let max_total = n_ctx as usize;
-        let tokens = if tokens.len() > max_total / 2 { tokens[tokens.len() - max_total / 2..].to_vec() } else { tokens };
+    // Tokenize WITHOUT extra BOS (templates carry their own control tokens)
+    let tokens = model.str_to_token(rendered, AddBos::Never).map_err(|e| e.to_string())?;
+    if tokens.is_empty() { return Ok(String::new()); }
+    let max_total = n_ctx as usize;
+    let tokens = if tokens.len() > max_total / 2 { tokens[tokens.len() - max_total / 2..].to_vec() } else { tokens };
 
-        let new_tokens_cap = 320usize;
-        let mut batch = LlamaBatch::new(tokens.len().max(512), 1);
+    let new_tokens_cap = 384usize;
+    let mut batch = LlamaBatch::new(tokens.len().max(512), 1);
 
-        // Prime with the full prompt
-        let last_idx = tokens.len() as i32 - 1;
-        for (i, t) in tokens.iter().enumerate() {
-            let is_last = i as i32 == last_idx;
-            batch.add(*t, i as i32, &[0], is_last)?;
-        }
-        ctx.decode(&mut batch)?;
+    // Prime with the full prompt
+    let last_idx = tokens.len() as i32 - 1;
+    for (i, t) in tokens.iter().enumerate() {
+        let is_last = i as i32 == last_idx;
+        batch.add(*t, i as i32, &[0], is_last).map_err(|e| e.to_string())?;
+    }
+    ctx.decode(&mut batch).map_err(|e| e.to_string())?;
 
-        let mut sampler = LlamaSampler::chain_simple(vec![
-            LlamaSampler::penalties(64, 1.12, 0.0, 0.0),
-            LlamaSampler::top_p(0.92, 16),
-            LlamaSampler::temp(eff_temp),
-            LlamaSampler::dist(1234),
-        ]);
+    let mut sampler = LlamaSampler::chain_simple(vec![
+        LlamaSampler::penalties(64, 1.12, 0.0, 0.0),
+        LlamaSampler::top_p(0.92, 16),
+        LlamaSampler::temp(eff_temp),
+        LlamaSampler::dist(1234),
+    ]);
 
-        let mut out = String::new();
-        let mut n_cur = tokens.len() as i32;
-        for _ in 0..new_tokens_cap {
-            let tok: LlamaToken = sampler.sample(&ctx, -1);
-            sampler.accept(tok);
-            if slot.model.is_eog_token(tok) { break; }
+    let mut out = String::new();
+    let mut n_cur = tokens.len() as i32;
+    for _ in 0..new_tokens_cap {
+        let tok: LlamaToken = sampler.sample(&ctx, -1);
+        sampler.accept(tok);
+        if model.is_eog_token(tok) { break; }
 
-            let piece = slot.model.token_to_str(tok, Special::Tokenize)?;
-            // Cut turn-end markers if tokenizer emits them as text
-            if turn_ends.iter().any(|e| piece.contains(e.as_str())) { break; }
-            out.push_str(&piece);
+        let piece = model.token_to_str(tok, Special::Tokenize).map_err(|e| e.to_string())?;
+        // Cut turn-end markers if tokenizer emits them as text
+        if turn_ends.iter().any(|e| piece.contains(e.as_str())) { break; }
+        out.push_str(&piece);
 
-            if n_cur >= max_total as i32 - 1 { break; }
-            batch.clear();
-            batch.add(tok, n_cur, &[0], true)?;
-            ctx.decode(&mut batch)?;
-            n_cur += 1;
-        }
+        if n_cur >= max_total as i32 - 1 { break; }
+        batch.clear();
+        batch.add(tok, n_cur, &[0], true).map_err(|e| e.to_string())?;
+        ctx.decode(&mut batch).map_err(|e| e.to_string())?;
+        n_cur += 1;
+    }
 
-        Ok(out.trim().to_string())
-    })();
+    Ok(out.trim().to_string())
+}
 
-    let msg = match result {
+/// Single-turn generate (compat) — wraps kai_generate_chat with one user message.
+#[no_mangle]
+pub extern "C" fn kai_generate(prompt: *const c_char, temp: f32, vfe: f32) -> *mut c_char {
+    if prompt.is_null() { return std::ptr::null_mut(); }
+    let cstr = unsafe { CStr::from_ptr(prompt) };
+    let p = match cstr.to_str() { Ok(s) => s, Err(_) => return std::ptr::null_mut() };
+    let json = format!("[{{\"role\":\"user\",\"content\":{}}}]",
+        serde_json::to_string(p).unwrap_or_else(|_| "\"\"".into()));
+    let cj = match CString::new(json) { Ok(c) => c, Err(_) => return std::ptr::null_mut() };
+    kai_generate_chat(cj.as_ptr(), temp, vfe, 0)
+}
+
+/// History-aware generation.
+/// json: [{"role":"system|user|assistant","content":"..."}, ...] (last = user turn)
+/// slot: 0 = fast, 1 = deep (falls back to the other slot if empty).
+#[no_mangle]
+pub extern "C" fn kai_generate_chat(json: *const c_char, temp: f32, vfe: f32, slot: i32) -> *mut c_char {
+    if json.is_null() { return std::ptr::null_mut(); }
+    let cstr = unsafe { CStr::from_ptr(json) };
+    let s = match cstr.to_str() { Ok(s) => s, Err(_) => return std::ptr::null_mut() };
+
+    let parsed: Result<Vec<serde_json::Value>, _> = serde_json::from_str(s);
+    let msgs_src = match parsed {
+        Ok(v) => v,
+        Err(e) => return match CString::new(format!("(bad history json: {e})")) {
+            Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() },
+    };
+
+    let mut msgs: Vec<(String, String)> = Vec::new();
+    for m in &msgs_src {
+        let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("user").to_string();
+        let content = m.get("content").and_then(|c| c.as_str()).unwrap_or("").to_string();
+        if !content.is_empty() { msgs.push((role, content)); }
+    }
+    if msgs.is_empty() || msgs.last().map(|(r, _)| r.as_str()) != Some("user") {
+        return match CString::new("(history must end with a user turn)") {
+            Ok(c) => c.into_raw(), Err(_) => std::ptr::null_mut() };
+    }
+
+    // Pick slot: requested → fallback to the other
+    let use_slot = if slot_mutex(slot).lock().map(|g| g.is_some()).unwrap_or(false) {
+        slot
+    } else {
+        1 - slot.clamp(0, 1)
+    };
+
+    let model_name = slot_mutex(use_slot).lock().ok()
+        .and_then(|g| g.as_ref().map(|s| std::path::Path::new(&s.path)
+            .file_name().map(|f| f.to_string_lossy().to_lowercase()).unwrap_or_default()))
+        .unwrap_or_default();
+
+    let rendered = render_chat(&model_name, &msgs);
+
+    let msg = match generate_with_slot(use_slot, &rendered, temp, vfe) {
         Ok(t) if t.trim().is_empty() => "…(empty generation — try rephrasing or downloading a bigger model)".to_string(),
         Ok(t) => t,
+        Err(e) if e.contains("no model in slot") =>
+            "⚠ No model loaded yet.\nTap the model name at the top → download qwen2.5:0.5b (free, ~400MB), then ask me anything.".to_string(),
         Err(e) => format!("(inference error: {e})"),
     };
 
@@ -310,6 +416,53 @@ pub extern "system" fn Java_com_axiom_kai_KaiBridge_loadGguf<'local>(
     let p: String = env.get_string(&path).map(|s| s.into()).unwrap_or_default();
     let c = match CString::new(p) { Ok(c) => c, Err(_) => return -1 };
     kai_load_gguf(c.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_loadGgufSlot<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    slot: jint,
+    path: JString<'local>,
+) -> jint {
+    let p: String = env.get_string(&path).map(|s| s.into()).unwrap_or_default();
+    let c = match CString::new(p) { Ok(c) => c, Err(_) => return -1 };
+    kai_load_gguf_slot(slot, c.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_slotInfo<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    slot: jint,
+) -> jstring {
+    let ptr = kai_slot_info(slot);
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    let s = cstr.to_string_lossy().into_owned();
+    unsafe { let _ = CString::from_raw(ptr); }
+    env.new_string(s).map(|j| j.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_axiom_kai_KaiBridge_generateChat<'local>(
+    mut env: JNIEnv<'local>,
+    _obj: JObject<'local>,
+    json: JString<'local>,
+    temp: jfloat,
+    vfe: jfloat,
+    slot: jint,
+) -> jstring {
+    let p: String = env.get_string(&json).map(|s| s.into()).unwrap_or_default();
+    let c = match CString::new(p) { Ok(c) => c, Err(_) => return std::ptr::null_mut() };
+    let ptr = kai_generate_chat(c.as_ptr(), temp, vfe, slot);
+    if ptr.is_null() { return std::ptr::null_mut(); }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    let s = cstr.to_string_lossy().into_owned();
+    unsafe { let _ = CString::from_raw(ptr); }
+    env.new_string(s).map(|j| j.into_raw()).unwrap_or(std::ptr::null_mut())
 }
 
 #[no_mangle]

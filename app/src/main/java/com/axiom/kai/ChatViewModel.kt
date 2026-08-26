@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
+data class SearchHit(val chatId: String, val chatTitle: String, val msgId: String,
+    val role: String, val text: String, val ts: Long)
+
 class ChatViewModel : ViewModel() {
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -20,6 +23,7 @@ class ChatViewModel : ViewModel() {
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
     private var recursionDepth = 0
+    private var lastSessionLog = 0L
 
     // GGUF download state
     private val _downloadState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
@@ -294,6 +298,19 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    /** Search all messages across all chats — for drawer "search your records" */
+    suspend fun searchAll(ctx: android.content.Context, q: String): List<SearchHit> {
+        if (q.length < 2) return emptyList()
+        val db = KaiDb.get(ctx)
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val titles = db.chatDao().chatsOnce().associate { it.id to it.title }
+            db.messageDao().search(q).map { m ->
+                SearchHit(chatId = m.chatId, chatTitle = titles[m.chatId] ?: "chat", msgId = m.id,
+                    role = m.role, text = m.text, ts = m.ts)
+            }
+        }
+    }
+
     fun newChat(ctx: Context) {
         viewModelScope.launch { createChat(ctx) }
     }
@@ -474,24 +491,28 @@ class ChatViewModel : ViewModel() {
                 val memBlock = memEngine.contextBlock(userText)
                 val toolsBlock = Tools.toolsPrompt(ctx)
 
-                // Self-knowledge: when asked about Kai itself, tell the model its REAL state
-                // (small models otherwise fall back to generic "I'm an AI without memory" training priors)
-                val lowerQ = userText.lowercase()
-                val asksAboutSelf = listOf(
-                    "persistent memory", "your memory", "do you remember", "you remember",
-                    "remember me", "remember anything", "about you", "about yourself",
-                    "who are you", "what are you", "what can you do", "your capabilities",
-                    "can you learn", "do you know me", "know about me"
-                ).any { lowerQ.contains(it) } ||
-                    (lowerQ.contains("memory") && (lowerQ.contains("you") || lowerQ.contains("have")))
-                val selfBlock = if (asksAboutSelf) {
-                    val count = db.memoryDao().count()
-                    val facts = db.memoryDao().allOnce().take(3).map { it.fact }
-                    val factList = if (facts.isEmpty()) "(none stored yet)" else facts.joinToString("; ")
-                    "\n[Kai self-state] You are Kai, running fully offline on this device. You DO have persistent memory: $count fact(s) about the user are stored in a local database and survive restarts, and chat history persists between sessions. Facts you currently remember: $factList. If asked whether you have memory, answer YES and mention what you remember. Never deny having memory.\n\n"
-                } else ""
-                val memPlusTools = selfBlock + memBlock + toolsBlock
-                val enrichedPrompt = if (memPlusTools.isNotBlank()) "$memPlusTools$userText" else userText
+                // ---- SOUL + ROUTER + HISTORY (Blocks A/C/E) ----
+                // Router: "auto" picks the right voice (code/deep/fast) per task
+                var genTag = curModel
+                var genSlot = 0
+                if (curModel == "auto") {
+                    val routed = ModelRouter.route(userText, ModelManager(ctx))
+                    if (routed != null) {
+                        genTag = routed.first; genSlot = routed.second
+                        val entry = ModelCatalog.byTag(genTag)
+                        if (entry != null && !ModelManager(ctx).isLoadedInSlot(entry, genSlot)) {
+                            ModelManager(ctx).loadInRust(entry, genSlot)
+                        }
+                    }
+                }
+
+                // Soul: identity + live state + session memory (always the system message)
+                val soulBlock = Soul.build(ctx, memEngine, genTag)
+                val knowledgeBlock = Knowledge.contextBlock(ctx, userText)
+
+                // History: last 12 turns from this chat — the model reads what came before
+                val historyMsgs = db.messageDao().messagesOnce(currentChatId).takeLast(12)
+                    .filter { it.role == "USER" || it.role == "KAI" }
 
                 val curvature = estimateCurvature(userText)
                 val surprise = estimateSurprise(userText, curvature)
@@ -500,12 +521,31 @@ class ChatViewModel : ViewModel() {
                 val baseTemp = 0.85f
                 val temp = safeTemp(baseTemp, curvature, 0.4f)
 
+                // Build the chat JSON: [soul+tools+memory+knowledge system] + history + current turn
+                val chatArr = org.json.JSONArray()
+                val sysObj = org.json.JSONObject()
+                sysObj.put("role", "system")
+                sysObj.put("content", soulBlock + "\n\n" + knowledgeBlock + memBlock + toolsBlock)
+                chatArr.put(sysObj)
+                for (h in historyMsgs) {
+                    val o = org.json.JSONObject()
+                    o.put("role", if (h.role == "USER") "user" else "assistant")
+                    o.put("content", if (h.text.length > 1500) h.text.take(1500) + "…" else h.text)
+                    chatArr.put(o)
+                }
+                val userObj = org.json.JSONObject()
+                userObj.put("role", "user")
+                userObj.put("content", userText)
+                chatArr.put(userObj)
+                val historyJson = chatArr.toString()
+
                 val kaiId = java.util.UUID.randomUUID().toString()
-                val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = "", vfe = vfe, curvature = curvature, temp = temp, model = curModel)
+                val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = "", vfe = vfe, curvature = curvature, temp = temp,
+                    model = if (curModel == "auto") "auto→$genTag" else curModel)
                 _messages.value = _messages.value + kaiMsg
 
                 val streamer = StreamingGenerator(ctx)
-                streamer.stream(enrichedPrompt, temp, vfe,
+                streamer.streamChat(historyJson, genSlot, temp, vfe,
                     onToken = { tok ->
                         _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + tok) else it }
                     },
@@ -513,8 +553,15 @@ class ChatViewModel : ViewModel() {
                         val finalText = _messages.value.find { it.id == kaiId }?.text ?: ""
                         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI",
-                                text = finalText, vfe = vfe, curvature = curvature, temp = temp, model = curModel,
+                                text = finalText, vfe = vfe, curvature = curvature, temp = temp,
+                                model = if (curModel == "auto") "auto→$genTag" else curModel,
                                 ts = System.currentTimeMillis()))
+                            // Permanent agent log (throttled to 1/60s)
+                            if (System.currentTimeMillis() - lastSessionLog > 60_000L) {
+                                lastSessionLog = System.currentTimeMillis()
+                                val title = db.chatDao().chat(currentChatId)?.title ?: "chat"
+                                SessionLog.append(ctx, title, historyMsgs.size / 2 + 1, userText)
+                            }
                         }
                         if (vfe > 3.0f && recursionDepth < 2) {
                             recursionDepth++

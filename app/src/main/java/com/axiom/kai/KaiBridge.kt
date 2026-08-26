@@ -25,8 +25,11 @@ object KaiBridge {
     external fun calculateVFE(surprise: Float, kl: Float): Float
     external fun curvatureToTemp(baseTemp: Float, curvature: Float, alpha: Float): Float
     external fun loadGguf(path: String): Int
+    external fun loadGgufSlot(slot: Int, path: String): Int
     external fun lastGgufInfo(): String
+    external fun slotInfo(slot: Int): String
     external fun generate(prompt: String, temp: Float, vfe: Float): String
+    external fun generateChat(historyJson: String, temp: Float, vfe: Float, slot: Int): String
 
     // Kotlin fallback when JNI not yet linked (gradle stub build)
     fun calculateVFEFallback(s: Float, k: Float) = s + k

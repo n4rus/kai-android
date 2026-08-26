@@ -241,7 +241,8 @@ suspend fun runOpencodeCommand(ctx: Context, raw: String, onImportRequested: () 
         else -> Tools.tryTool(ctx, cmd)?.let { r -> listOf(r) } ?: listOf(
             "Unknown: $cmd",
             "Try: help, kai launch opencode, kai export, kai import, /ls, /cat <path>, > <shell>,",
-            "     /pdf <f>, /search <q>, /img <f>, /apps [q], /openapp <n>, /url <u>, /alarm HH:MM [label],",
+            "     /pdf <f>, /search <q>, /ingest <url>, /recall <q>, /img <f>,",
+            "     /apps [q], /openapp <n>, /url <u>, /alarm HH:MM [label],",
             "     /event Title @ yyyy-MM-dd HH:mm, /battery, /note text"
         )
     }

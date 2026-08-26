@@ -384,6 +384,21 @@ object Tools {
             }
             lower.startsWith("/battery") || lower.startsWith("/device") -> deviceStatus(ctx)
             lower.startsWith("/note ") -> note(ctx, t.substringAfter(' ').trim())
+            // Knowledge base (Block D)
+            lower.startsWith("/ingest ") -> {
+                val target = t.substringAfter(' ').trim()
+                kotlinx.coroutines.runBlocking { Knowledge.ingestUrl(ctx, target) }
+            }
+            lower.startsWith("/recall ") -> {
+                val q = t.substringAfter(' ').trim()
+                kotlinx.coroutines.runBlocking {
+                    val hits = Knowledge.recall(ctx, q, 4)
+                    if (hits.isEmpty()) "⚠ nothing recalled for \"$q\" — try /ingest <url> first"
+                    else "📚 Recalled for \"$q\":\n" + hits.joinToString("\n\n") {
+                        "• (${it.sourceTitle}) ${it.text.take(300)}"
+                    }
+                }
+            }
             else -> null
         }
     }
@@ -391,14 +406,15 @@ object Tools {
     /** System prompt section describing tools (injected so Kai knows its abilities) */
     fun toolsPrompt(ctx: Context): String {
         val ws = File(ctx.filesDir, "workspace")
-        return "[Tools] You are a full device companion. Available: " +
+        return "[Tools] You are a full device companion + knowledge worker. Available: " +
             "web browse ('browse example.com'), web search ('/search query'), " +
+            "knowledge base ('/ingest <url>' to fetch+store a page, '/recall <q>' to search it; I auto-recall for every turn), " +
             "PDF reading ('/pdf file.pdf' — auto-detected on /cat too), image facts ('/img path.jpg'; full vision via Kai-PC), " +
             "files (/ls, /cat path, /write name.txt: content), sandbox shell ('> cmd' or '/shell cmd'), " +
             "apps ('/apps [filter]' list, '/openapp name' launch), browser open ('/url url'), " +
             "alarms ('/alarm HH:MM label'), calendar events ('/event Title @ yyyy-MM-dd HH:mm'), " +
             "device status ('/battery'), notes ('/note text'). " +
-            "When the user asks you to do something on the phone (open app, set alarm, add event, check battery), " +
+            "When the user asks you to do something on the phone (open app, set alarm, add event, check battery, ingest a page), " +
             "tell them the exact command or use it. Workspace: ${ws.absolutePath}. [/Tools]\n\n"
     }
 }
