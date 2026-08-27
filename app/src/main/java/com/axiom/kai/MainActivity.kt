@@ -299,52 +299,51 @@ Scaffold(
                                     Toast.makeText(ctx, "auto — code→coder, deep→best, else→fast", Toast.LENGTH_SHORT).show()
                                 }
                             )
-                            models.forEach { e ->
-                                val downloaded = downloadState[e.tag] == true
-                                val pct = progress[e.tag]
-                                val isRemote = e.isRemote
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(when {
-                                            isRemote -> "${e.tag} ✦"
-                                            downloaded -> "${e.tag} ✓"
-                                            pct != null -> "${e.tag} ⬇ ${pct}%"
-                                            else -> "${e.tag} ⬇ ${e.sizeMb}MB"
-                                        })
-                                    },
-                                    onClick = {
-                                        vm.setModel(e.tag)
-                                        if (isRemote) {
-                                            if (e.tag.startsWith("gemini:")) {
-                                                if (!GeminiClient.isLoggedIn(ctx) || !GeminiClient.hasApiKey(ctx)) {
-                                                    Toast.makeText(ctx, "Tap ✦ to set up Gemini (Google login + API key)", Toast.LENGTH_SHORT).show()
-                                                    showGeminiSettings = true
-                                                } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                val prov = when {
-                                                    e.tag.startsWith("deepseek:") -> "deepseek"
-                                                    e.tag.startsWith("gpt:") -> "openai"
-                                                    e.tag.startsWith("qwen:") -> "qwen"
-                                                    e.tag.startsWith("claude:") -> "claude"
-                                                    else -> ""
-                                                }
-                                                if (prov.isNotEmpty() && !RemoteLLMClient.hasKey(ctx, prov)) {
-                                                    Toast.makeText(ctx, "Tap ✦ → set ${prov.uppercase()} API key for ${e.tag}", Toast.LENGTH_SHORT).show()
-                                                    showGeminiSettings = true
-                                                } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } else if (!downloaded && pct == null) {
-                                            vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
-                                        } else if (downloaded) {
-                                            Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
-                                            vm.tryLoadCurrentModel(ctx) { r ->
-                                                Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                        pickerExpanded = false
-                                    }
-                                )
-                            }
+                             models.forEach { e ->
+                                 val downloaded = downloadState[e.tag] == true
+                                 val pct = progress[e.tag]
+                                 val isRemote = e.isRemote
+                                 val label = when {
+                                     isRemote -> "${e.tag} ✦ remote"
+                                     downloaded -> "${e.tag} ✓ local"
+                                     pct != null -> "${e.tag} ⬇ ${pct}%"
+                                     else -> "${e.tag} ⬇ ${e.sizeMb}MB"
+                                 }
+                                 DropdownMenuItem(
+                                     text = { Text(label) },
+                                     onClick = {
+                                         vm.setModel(e.tag)
+                                         if (isRemote) {
+                                             if (e.tag.startsWith("gemini:")) {
+                                                 if (!GeminiClient.isLoggedIn(ctx) || !GeminiClient.hasApiKey(ctx)) {
+                                                     Toast.makeText(ctx, "Tap ✦ to set up Gemini (Google login + API key)", Toast.LENGTH_SHORT).show()
+                                                     showGeminiSettings = true
+                                                 } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
+                                             } else {
+                                                 val prov = when {
+                                                     e.tag.startsWith("deepseek:") -> "deepseek"
+                                                     e.tag.startsWith("gpt:") -> "openai"
+                                                     e.tag.startsWith("qwen:") -> "qwen"
+                                                     e.tag.startsWith("claude:") -> "claude"
+                                                     else -> ""
+                                                 }
+                                                 if (prov.isNotEmpty() && !RemoteLLMClient.hasKey(ctx, prov)) {
+                                                     Toast.makeText(ctx, "Tap ✦ → set ${prov.uppercase()} API key for ${e.tag}", Toast.LENGTH_SHORT).show()
+                                                     showGeminiSettings = true
+                                                 } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
+                                             }
+                                         } else if (!downloaded && pct == null) {
+                                             vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
+                                         } else if (downloaded) {
+                                             Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
+                                             vm.tryLoadCurrentModel(ctx) { r ->
+                                                 Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
+                                             }
+                                         }
+                                         pickerExpanded = false
+                                     }
+                                 )
+                             }
                             DropdownMenuItem(
                                 text = { Text(if (vm.billingHasV2(ctx)) "Kai Pro — ${vm.billingDaysLeft(ctx)}d left ✓" else "Get Kai Pro (v2) — $4.99") },
                                 onClick = {

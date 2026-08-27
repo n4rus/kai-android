@@ -57,7 +57,7 @@ private const val PREFS = "kai_theme"
 private const val KEY_MODE = "theme_mode"
 
 fun getThemeMode(ctx: Context): Int =
-    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_MODE, 0)
+    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_MODE, 1)
 
 fun setThemeMode(ctx: Context, mode: Int) {
     ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_MODE, mode).apply()
