@@ -30,6 +30,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.axiom.kai.ui.theme.KaiTheme
+import com.axiom.kai.ui.theme.getThemeMode
+import com.axiom.kai.ui.theme.setThemeMode
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,8 +117,21 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     }
     val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         GoogleAuthManager.handleResult(ctx, res.data) { ok, msg ->
-            Toast.makeText(ctx, if (ok) "Google ✓ $msg — now paste Gemini API key" else "Sign-in failed: $msg", Toast.LENGTH_SHORT).show()
-            if (ok) showGeminiSettings = true
+            when {
+                ok -> {
+                    Toast.makeText(ctx, "Google ✓ $msg — now paste Gemini API key", Toast.LENGTH_SHORT).show()
+                    showGeminiSettings = true
+                }
+                msg == "login_unavailable_fallback_key" -> {
+                    // Error 10 (DEVELOPER_ERROR): Google login not configured.
+                    // Fall back straight to the API key prompt — Gemini free tier works with just the key.
+                    showGeminiSettings = true
+                    Toast.makeText(ctx, "Google login unavailable — paste your free Gemini API key from aistudio.google.com", Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    Toast.makeText(ctx, "Sign-in failed: $msg", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
     // 📎 File explorer: pick ANY file → Kai reads content into context (or sends to PC if kai-pc)
@@ -182,7 +197,6 @@ Scaffold(
                     // Chat history drawer — continue a session or start new
                     TextButton(onClick = { historyExpanded = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) }
                     DropdownMenu(expanded = historyExpanded, onDismissRequest = { historyExpanded = false }) {
-                        // Google Sign-In / API Keys — always accessible in settings drawer
                         DropdownMenuItem(
                             text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("✦", style = MaterialTheme.typography.titleMedium)
@@ -190,6 +204,30 @@ Scaffold(
                                 Text("Google Sign-In & API Keys", style = MaterialTheme.typography.bodyMedium)
                             }},
                             onClick = { showGeminiSettings = true; historyExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🎨", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }},
+                            onClick = {
+                                val next = (getThemeMode(ctx) + 1) % 3
+                                setThemeMode(ctx, next)
+                                Toast.makeText(ctx, "Theme → ${when (next) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}", Toast.LENGTH_SHORT).show()
+                                historyExpanded = false
+                            }
+                        )
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                        DropdownMenuItem(
+                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("⚡", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.width(12.dp))
+                                Text("VFE / Curvature — Kai's internal tuning",
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }},
+                            onClick = { showPhysics = true; historyExpanded = false }
                         )
                         HorizontalDivider(Modifier.padding(vertical = 4.dp))
                         DropdownMenuItem(
