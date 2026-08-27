@@ -2,7 +2,7 @@ package com.axiom.kai.ui.theme
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import android.content.Context
 
@@ -61,12 +61,19 @@ fun getThemeMode(ctx: Context): Int =
 
 fun setThemeMode(ctx: Context, mode: Int) {
     ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_MODE, mode).apply()
+    ThemeVersion.version.value++
+}
+
+object ThemeVersion {
+    var version = mutableStateOf(0)
+        private set
 }
 
 @Composable
 fun KaiTheme(content: @Composable () -> Unit) {
+    ThemeVersion.version.value
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val mode = remember { getThemeMode(ctx) }
+    val mode = getThemeMode(ctx)
     val scheme = when (mode) {
         1 -> darkBannerScheme()
         2 -> blackBannerScheme()

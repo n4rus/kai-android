@@ -45,6 +45,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun KaiApp() {
     var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    val ctx = LocalContext.current
+    // observe language version for bottom bar recomposition
+    @Suppress("UNUSED_VARIABLE") val langV = Lang.version.value
     androidx.compose.material3.Scaffold(
         bottomBar = {
             Row(
@@ -52,7 +55,7 @@ fun KaiApp() {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 androidx.compose.material3.TextButton(onClick = { selectedTab = 0 }) {
-                    androidx.compose.material3.Text(if (selectedTab == 0) "💬 Chat" else "Chat", color = if (selectedTab == 0) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Gray)
+                    androidx.compose.material3.Text(if (selectedTab == 0) Lang.t(ctx,"💬 Chat","💬 Conversa") else Lang.t(ctx,"Chat","Conversa"), color = if (selectedTab == 0) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Gray)
                 }
                 androidx.compose.material3.TextButton(onClick = { selectedTab = 1 }) {
                     androidx.compose.material3.Text(if (selectedTab == 1) "⌨️ Terminal" else "Terminal", color = if (selectedTab == 1) androidx.compose.material3.MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Gray)
@@ -69,8 +72,15 @@ fun KaiApp() {
     }
 }
 
-// Beginner-friendly suggestion chips (newbie → dev → theory)
-private val SUGGESTIONS = listOf(
+// Beginner-friendly suggestion chips (newbie → dev → theory) — localized
+private fun suggestionsFor(ctx: Context): List<String> = if (Lang.isPt(ctx)) listOf(
+    "Explique como se eu tivesse 5 anos: o que é um LLM?",
+    "Escreva um script Python para renomear arquivos",
+    "Explique energia livre variacional de forma simples",
+    "Depure este erro de borrow no Rust",
+    "O que é o princípio da energia livre?",
+    "Resuma este tópico para um iniciante"
+) else listOf(
     "Explain like I'm 5: what is an LLM?",
     "Write a Python script to rename files",
     "Explain variational free energy simply",
@@ -83,6 +93,7 @@ private val SUGGESTIONS = listOf(
 @Composable
 fun KaiScreen(vm: ChatViewModel = viewModel()) {
     val ctx = LocalContext.current
+    @Suppress("UNUSED_VARIABLE") val langTick = Lang.version.value
     val messages by vm.messages.collectAsState()
     val model by vm.model.collectAsState()
     val generating by vm.isGenerating.collectAsState()
@@ -458,7 +469,7 @@ Scaffold(
                             Text(Lang.t(ctx,"Try asking:","Experimente perguntar:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    items(SUGGESTIONS) { s ->
+                    items(suggestionsFor(ctx)) { s ->
                         Card(
                             shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)

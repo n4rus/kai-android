@@ -101,6 +101,12 @@ interface MemoryDao {
 
 // ==================== DATABASE ====================
 
+val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE messages ADD COLUMN latencyMs INTEGER")
+    }
+}
+
 @Database(entities = [ChatEntity::class, MessageEntity::class, MemoryEntity::class], version = 2)
 @Suppress("unused")
 abstract class KaiDb : RoomDatabase() {
@@ -112,6 +118,7 @@ abstract class KaiDb : RoomDatabase() {
         @Volatile private var INSTANCE: KaiDb? = null
         fun get(ctx: Context): KaiDb = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(ctx, KaiDb::class.java, "kai.db")
+                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration()
                 .build().also { INSTANCE = it }
         }
