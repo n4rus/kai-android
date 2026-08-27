@@ -249,7 +249,7 @@ class ChatViewModel : ViewModel() {
                     val msgs = db.messageDao().messagesOnce(chat.id)
                     _messages.value = msgs.map { m ->
                         ChatMessage(id = m.id, role = when (m.role) { "USER" -> Role.USER; "KAI_RECURSIVE" -> Role.KAI_RECURSIVE; else -> Role.KAI },
-                            text = m.text, vfe = m.vfe, curvature = m.curvature, temp = m.temp, model = m.model, ts = m.ts)
+                            text = m.text, vfe = m.vfe, curvature = m.curvature, temp = m.temp, model = m.model, ts = m.ts, latencyMs = m.latencyMs)
                     }
                 } else {
                     createChat(ctx)
@@ -297,7 +297,7 @@ class ChatViewModel : ViewModel() {
             val msgs = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.messageDao().messagesOnce(chatId) }
             _messages.value = msgs.map { m ->
                 ChatMessage(id = m.id, role = when (m.role) { "USER" -> Role.USER; "KAI_RECURSIVE" -> Role.KAI_RECURSIVE; else -> Role.KAI },
-                    text = m.text, vfe = m.vfe, curvature = m.curvature, temp = m.temp, model = m.model, ts = m.ts)
+                    text = m.text, vfe = m.vfe, curvature = m.curvature, temp = m.temp, model = m.model, ts = m.ts, latencyMs = m.latencyMs)
             }
         }
     }
@@ -490,6 +490,7 @@ class ChatViewModel : ViewModel() {
     }
 
     private fun continueSendAfterTools(ctx: Context, db: KaiDb, memEngine: MemoryEngine, userText: String, curModel: String) {
+        val t0 = System.currentTimeMillis()
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 // Gemini remote models — after Google login, free
@@ -520,10 +521,11 @@ class ChatViewModel : ViewModel() {
                     arrTmp.put(org.json.JSONObject().put("role", "user").put("content", userText))
                     val gemModel = if (curModel == "gemini:pro") "gemini-1.5-pro" else "gemini-1.5-flash"
                     val out = GeminiClient.generate(ctx, arrTmp.toString(), gemModel)
+                    val elapsed = System.currentTimeMillis() - t0
                     val kaiId = java.util.UUID.randomUUID().toString()
-                    val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = out, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
+                    val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = out, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f, latencyMs = elapsed)
                     _messages.value = _messages.value + kaiMsg
-                    db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI", text = out, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
+                    db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI", text = out, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsed))
                     _isGenerating.value = false
                     return@launch
                 }
@@ -538,10 +540,11 @@ class ChatViewModel : ViewModel() {
                     for (h in hist2) arr2.put(org.json.JSONObject().put("role", if (h.role == "USER") "user" else "assistant").put("content", h.text.take(1500)))
                     arr2.put(org.json.JSONObject().put("role", "user").put("content", userText))
                     val out2 = RemoteLLMClient.generate(ctx, arr2.toString(), curModel)
+                    val elapsed2 = System.currentTimeMillis() - t0
                     val kaiId2 = java.util.UUID.randomUUID().toString()
-                    val kaiMsg2 = ChatMessage(id = kaiId2, role = Role.KAI, text = out2, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
+                    val kaiMsg2 = ChatMessage(id = kaiId2, role = Role.KAI, text = out2, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f, latencyMs = elapsed2)
                     _messages.value = _messages.value + kaiMsg2
-                    db.messageDao().insert(MessageEntity(id = kaiId2, chatId = currentChatId, role = "KAI", text = out2, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
+                    db.messageDao().insert(MessageEntity(id = kaiId2, chatId = currentChatId, role = "KAI", text = out2, vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsed2))
                     _isGenerating.value = false
                     return@launch
                 }
@@ -612,13 +615,14 @@ class ChatViewModel : ViewModel() {
                         userText, genTag, genSlot, temp, vfe) { step ->
                         _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + step) else it }
                     }
-                    // AgentLoop streams via onStep; ensure final persisted (in case onStep didn't cover all)
+                    val elapsedAgent = System.currentTimeMillis() - t0
                     val finalAgent = _messages.value.find { it.id == kaiId }?.text?.takeIf { it.isNotBlank() } ?: agentText
+                    _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(latencyMs = elapsedAgent) else it }
                     viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI",
                             text = finalAgent, vfe = vfe, curvature = curvature, temp = temp,
                             model = if (curModel == "auto") "auto→$genTag" else curModel,
-                            ts = System.currentTimeMillis()))
+                            ts = System.currentTimeMillis(), latencyMs = elapsedAgent))
                         if (System.currentTimeMillis() - lastSessionLog > 60_000L) {
                             lastSessionLog = System.currentTimeMillis()
                             val title = db.chatDao().chat(currentChatId)?.title ?: "chat"
@@ -638,11 +642,13 @@ class ChatViewModel : ViewModel() {
                     },
                     onDone = {
                         val finalText = _messages.value.find { it.id == kaiId }?.text ?: ""
+                        val elapsed = System.currentTimeMillis() - t0
+                        _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(latencyMs = elapsed) else it }
                         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI",
                                 text = finalText, vfe = vfe, curvature = curvature, temp = temp,
                                 model = if (curModel == "auto") "auto→$genTag" else curModel,
-                                ts = System.currentTimeMillis()))
+                                ts = System.currentTimeMillis(), latencyMs = elapsed))
                             // Permanent agent log (throttled to 1/60s)
                             if (System.currentTimeMillis() - lastSessionLog > 60_000L) {
                                 lastSessionLog = System.currentTimeMillis()

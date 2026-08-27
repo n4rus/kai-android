@@ -201,7 +201,7 @@ Scaffold(
                             text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("✦", style = MaterialTheme.typography.titleMedium)
                                 Spacer(Modifier.width(12.dp))
-                                Text("Google Sign-In & API Keys", style = MaterialTheme.typography.bodyMedium)
+                                Text(Lang.t(ctx, "Google Sign-In & API Keys", "Entrar com Google & Chaves API"), style = MaterialTheme.typography.bodyMedium)
                             }},
                             onClick = { showGeminiSettings = true; historyExpanded = false }
                         )
@@ -209,13 +209,15 @@ Scaffold(
                             text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("🎨", style = MaterialTheme.typography.titleMedium)
                                 Spacer(Modifier.width(12.dp))
-                                Text("Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
+                                Text(Lang.t(ctx, "Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
+                                    "Tema: ${when (getThemeMode(ctx)) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"),
                                     style = MaterialTheme.typography.bodyMedium)
                             }},
                             onClick = {
                                 val next = (getThemeMode(ctx) + 1) % 3
                                 setThemeMode(ctx, next)
-                                Toast.makeText(ctx, "Theme → ${when (next) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, Lang.t(ctx, "Theme → ${when (next) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
+                                    "Tema → ${when (next) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"), Toast.LENGTH_SHORT).show()
                                 historyExpanded = false
                             }
                         )
@@ -224,14 +226,27 @@ Scaffold(
                             text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("⚡", style = MaterialTheme.typography.titleMedium)
                                 Spacer(Modifier.width(12.dp))
-                                Text("VFE / Curvature — Kai's internal tuning",
+                                Text(Lang.t(ctx, "VFE / Curvature — ${if (showPhysics) "ON" else "OFF"}", "VFE / Curvatura — ${if (showPhysics) "ATIVADO" else "DESATIVADO"}"),
                                     style = MaterialTheme.typography.bodyMedium)
                             }},
-                            onClick = { showPhysics = true; historyExpanded = false }
+                            onClick = { showPhysics = !showPhysics; historyExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🌐", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.width(12.dp))
+                                Text(Lang.t(ctx, "Language: ${if (Lang.isPt(ctx)) "Português" else "English"}", "Idioma: ${if (Lang.isPt(ctx)) "Português" else "English"}"),
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }},
+                            onClick = {
+                                val n = Lang.toggle(ctx)
+                                Toast.makeText(ctx, Lang.t(ctx, "Language → ${if (n=="pt") "Português" else "English"}", "Idioma → ${if (n=="pt") "Português" else "English"}"), Toast.LENGTH_SHORT).show()
+                                historyExpanded = false
+                            }
                         )
                         HorizontalDivider(Modifier.padding(vertical = 4.dp))
                         DropdownMenuItem(
-                            text = { Text("✚ New chat") },
+                            text = { Text(Lang.t(ctx, "✚ New chat", "✚ Nova conversa")) },
                             onClick = { vm.newChat(ctx); historyExpanded = false }
                         )
                         // Search across all messages (Block D drawer UX)
@@ -245,12 +260,12 @@ Scaffold(
                             OutlinedTextField(
                                 value = searchQ,
                                 onValueChange = { searchQ = it },
-                                label = { Text("Search your records…") },
+                                label = { Text(Lang.t(ctx, "Search your records…", "Buscar nos registros…")) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             if (searchQ.length >= 2 && searchResults.isEmpty()) {
-                                Text("no matches", style = MaterialTheme.typography.labelSmall,
+                                Text(Lang.t(ctx, "no matches", "nenhum resultado"), style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.padding(6.dp),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -267,7 +282,7 @@ Scaffold(
                         }
                         val chats = vm.chatList.collectAsState().value
                         if (chats.isEmpty() && searchQ.isBlank()) {
-                            DropdownMenuItem(text = { Text("No history yet", color = MaterialTheme.colorScheme.onSurfaceVariant) }, onClick = {})
+                            DropdownMenuItem(text = { Text(Lang.t(ctx, "No history yet", "Nenhum histórico ainda"), color = MaterialTheme.colorScheme.onSurfaceVariant) }, onClick = {})
                         }
                         chats.forEach { c ->
                             DropdownMenuItem(
@@ -363,10 +378,6 @@ Scaffold(
                             )
                         }
                     }
-                    // Physics toggle — hidden by default, devs/theory tap to expand
-                    TextButton(onClick = { showPhysics = !showPhysics }) {
-                        Text(if (showPhysics) "▾" else "▸", style = MaterialTheme.typography.titleMedium)
-                    }
                 }
             )
         }
@@ -394,7 +405,7 @@ Scaffold(
                 }
             }
 
-            // Physics meters — collapsed by default (beginner-friendly), expandable for devs
+            // Physics meters — collapsed by default (beginner-friendly), expandable for devs via menu ⚡
             if (showPhysics) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Card(Modifier.weight(1f)) {
@@ -402,7 +413,7 @@ Scaffold(
                             Text("VFE", style = MaterialTheme.typography.labelMedium)
                             val v = lastKai?.vfe ?: 2.1f
                             LinearProgressIndicator(progress = { (v/5f).coerceIn(0f,1f) }, modifier = Modifier.fillMaxWidth())
-                            Text("VFE %.1f — %s".format(v, if (v > 3) "explore" else "consolidate"), style = MaterialTheme.typography.bodySmall)
+                            Text("VFE %.1f — %s".format(v, if (v > 3) Lang.t(ctx,"explore","explorando") else Lang.t(ctx,"consolidate","consolidando")), style = MaterialTheme.typography.bodySmall)
                             val ggufLabel = vm.lastGgufLabel(ctx)
                             Text(ggufLabel, style = MaterialTheme.typography.labelSmall,
                                 color = if (ggufLabel.contains("✓")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
@@ -410,17 +421,17 @@ Scaffold(
                     }
                     Card(Modifier.weight(1f)) {
                         Column(Modifier.padding(8.dp)) {
-                            Text("Curvature → Temp", style = MaterialTheme.typography.labelMedium)
+                            Text(Lang.t(ctx,"Curvature → Temp","Curvatura → Temp"), style = MaterialTheme.typography.labelMedium)
                             val c = lastKai?.curvature ?: 0.45f
                             val t = lastKai?.temp ?: 0.85f
                             Text("g %.2f → T' %.2f".format(c, t), style = MaterialTheme.typography.bodySmall)
-                            if (c > 0.7f) Text("⚡ Novel — T auto ↑", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            if (c > 0.7f) Text(Lang.t(ctx,"⚡ Novel — T auto ↑","⚡ Novo — T auto ↑"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
             } else if ((lastKai?.vfe ?: 0f) > 3f) {
                 // Beginner hint only when something interesting happens
-                Text("⚡ Kai is exploring a novel idea…", style = MaterialTheme.typography.labelSmall,
+                Text(Lang.t(ctx,"⚡ Kai is exploring a novel idea…","⚡ Kai está explorando uma ideia nova…"), style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     color = MaterialTheme.colorScheme.primary)
             }
@@ -439,12 +450,12 @@ Scaffold(
                 if (messages.isEmpty()) {
                     item {
                         Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Hi, I'm Kai 👋", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                            Text("Your on-device AI — private, offline, free.",
+                            Text(Lang.t(ctx,"Hi, I'm Kai 👋","Olá, sou o Kai 👋"), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                            Text(Lang.t(ctx,"Your on-device AI — private, offline, free.","Sua IA no dispositivo — privada, offline, gratuita."),
                                 style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(16.dp))
-                            Text("Try asking:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(Lang.t(ctx,"Try asking:","Experimente perguntar:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     items(SUGGESTIONS) { s ->
@@ -478,23 +489,32 @@ Scaffold(
                                         // Copy message to clipboard
                                         val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                         cm.setPrimaryClip(android.content.ClipData.newPlainText("kai", m.text))
-                                        Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(ctx, Lang.t(ctx,"Copied","Copiado"), Toast.LENGTH_SHORT).show()
                                     }
                                 )
                         ) {
 Column(Modifier.padding(12.dp)) {
                             androidx.compose.foundation.text.selection.SelectionContainer {
-                                Text(m.text.ifEmpty { if (isGhost) "↻ thinking…" else "…" },
+                                Text(m.text.ifEmpty { if (isGhost) Lang.t(ctx,"↻ thinking…","↻ pensando…") else "…" },
                                     style = MaterialTheme.typography.bodyMedium)
                             }
-                            if (showPhysics && m.vfe != null) {
-                                Text("VFE %.1f · g %.2f · T %.2f".format(m.vfe, m.curvature ?: 0f, m.temp ?: 0f),
-                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (m.role != Role.USER) {
+                                val timeStr = m.latencyMs?.let { if (it < 1000) "${it}ms" else "%.1fs".format(it/1000f) } ?: ""
+                                val base = buildList {
+                                    add(m.model)
+                                    if (timeStr.isNotEmpty()) add(timeStr)
+                                    if (showPhysics && m.vfe != null) {
+                                        add("VFE %.1f".format(m.vfe))
+                                        add("g %.2f".format(m.curvature ?: 0f))
+                                        add("T %.2f".format(m.temp ?: 0f))
+                                    }
+                                }.joinToString(" · ")
+                                Text(base, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         }
                         if (isGhost) {
-                            Text("↻ Kai's deeper thought — use as prompt",
+                            Text(Lang.t(ctx,"↻ Kai's deeper thought — use as prompt","↻ Pensamento profundo do Kai — usar como prompt"),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(start = 8.dp, top = 2.dp)
@@ -506,7 +526,7 @@ Column(Modifier.padding(12.dp)) {
                     Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Kai is thinking…", style = MaterialTheme.typography.bodySmall)
+                        Text(Lang.t(ctx,"Kai is thinking…","Kai está pensando…"), style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 item { Spacer(Modifier.height(8.dp)) }
@@ -524,7 +544,7 @@ Column(Modifier.padding(12.dp)) {
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Message Kai…") },
+                    placeholder = { Text(Lang.t(ctx,"Message Kai…","Mensagem para o Kai…")) },
                     singleLine = false,
                     maxLines = 4
                 )
@@ -533,7 +553,7 @@ Column(Modifier.padding(12.dp)) {
                     onClick = { vm.send(ctx, input); input = "" },
                     enabled = input.isNotBlank() && !generating,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) { Text("Send") }
+                ) { Text(Lang.t(ctx,"Send","Enviar")) }
             }
         }
     }

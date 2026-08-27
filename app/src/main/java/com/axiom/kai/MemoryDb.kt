@@ -27,7 +27,8 @@ data class MessageEntity(
     val curvature: Float?,
     val temp: Float?,
     val model: String,
-    val ts: Long
+    val ts: Long,
+    val latencyMs: Long? = null
 )
 
 @Entity(tableName = "memories")
@@ -100,7 +101,7 @@ interface MemoryDao {
 
 // ==================== DATABASE ====================
 
-@Database(entities = [ChatEntity::class, MessageEntity::class, MemoryEntity::class], version = 1)
+@Database(entities = [ChatEntity::class, MessageEntity::class, MemoryEntity::class], version = 2)
 @Suppress("unused")
 abstract class KaiDb : RoomDatabase() {
     abstract fun chatDao(): ChatDao
