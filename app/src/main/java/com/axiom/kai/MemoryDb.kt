@@ -116,11 +116,70 @@ abstract class KaiDb : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: KaiDb? = null
+        // ---- history protection: file-level backup before any Room open/migration ----
+        private fun backupIfNeeded(ctx: Context) {
+            try {
+                val dbFile = ctx.getDatabasePath("kai.db")
+                val dir = dbFile.parentFile ?: return
+                val bak = java.io.File(dir, "kai.db.backup")
+                // if DB is empty/missing but backup exists -> restore first (protects against prior destructive wipe)
+                if ((!dbFile.exists() || dbFile.length() < 1024) && bak.exists() && bak.length() > 1024) {
+                    try {
+                        bak.copyTo(dbFile, overwrite = true)
+                        listOf("-shm", "-wal").forEach { sfx ->
+                            val f = java.io.File(bak.path + sfx)
+                            if (f.exists() && f.length() > 0) f.copyTo(java.io.File(dbFile.path + sfx), overwrite = true)
+                        }
+                        android.util.Log.i("KaiDb", "restored history from backup ${bak.length()} bytes")
+                        return
+                    } catch (_: Throwable) {}
+                }
+                if (!dbFile.exists() || dbFile.length() == 0L) return
+                val bak2 = java.io.File(dir, "kai.db.backup2")
+                // rotate if size changed (new messages)
+                if (bak.exists() && bak.length() != dbFile.length()) {
+                    if (bak2.exists()) bak2.delete()
+                    bak.renameTo(bak2)
+                }
+                if (!bak.exists() || bak.length() != dbFile.length()) {
+                    dbFile.copyTo(bak, overwrite = true)
+                    listOf("-shm", "-wal").forEach { sfx ->
+                        val f = java.io.File(dbFile.path + sfx)
+                        if (f.exists() && f.length() > 0) f.copyTo(java.io.File(bak.path + sfx), overwrite = true)
+                    }
+                    android.util.Log.i("KaiDb", "history backup saved ${bak.length()} bytes -> ${bak.path}")
+                }
+                // also keep an external visible copy for user (survives fallback wipe)
+                try {
+                    val ext = java.io.File(ctx.getExternalFilesDir(null), "kai.db.backup")
+                    if (!ext.exists() || ext.length() != dbFile.length()) {
+                        dbFile.copyTo(ext, overwrite = true)
+                    }
+                } catch (_: Throwable) {}
+            } catch (t: Throwable) { android.util.Log.w("KaiDb", "backup failed: $t") }
+        }
         fun get(ctx: Context): KaiDb = INSTANCE ?: synchronized(this) {
+            backupIfNeeded(ctx)
             INSTANCE ?: Room.databaseBuilder(ctx, KaiDb::class.java, "kai.db")
                 .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration()
                 .build().also { INSTANCE = it }
+        }
+        // manual restore helper (call from debug menu if needed)
+        fun restoreBackupIfEmpty(ctx: Context) {
+            try {
+                val dbFile = ctx.getDatabasePath("kai.db")
+                if (dbFile.exists() && dbFile.length() > 1024) return
+                val bak = java.io.File(dbFile.parent, "kai.db.backup")
+                if (bak.exists() && bak.length() > 1024) {
+                    bak.copyTo(dbFile, overwrite = true)
+                    listOf("-shm","-wal").forEach { sfx ->
+                        val f = java.io.File(bak.path + sfx)
+                        if (f.exists()) f.copyTo(java.io.File(dbFile.path + sfx), overwrite = true)
+                    }
+                    android.util.Log.i("KaiDb", "restored history from backup ${bak.length()} bytes")
+                }
+            } catch (t: Throwable) { android.util.Log.w("KaiDb", "restore failed: $t") }
         }
     }
 }
