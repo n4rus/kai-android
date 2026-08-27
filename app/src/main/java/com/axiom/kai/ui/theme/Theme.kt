@@ -41,26 +41,15 @@ fun darkBannerScheme() = darkColorScheme(
     onPrimary = Color(0xFF1A1A1A)
 )
 
-@Composable
-fun blackBannerScheme() = darkColorScheme(
-    primary = KaiBanner.Green,
-    secondary = KaiBanner.LightGreen,
-    tertiary = KaiBanner.DarkGreen,
-    surface = KaiBanner.NearBlack,
-    surfaceVariant = KaiBanner.Dark,
-    onSurface = KaiBanner.TextLight,
-    onSurfaceVariant = KaiBanner.TextGray,
-    onPrimary = Color(0xFF1A1A1A)
-)
-
 private const val PREFS = "kai_theme"
 private const val KEY_MODE = "theme_mode"
 
 fun getThemeMode(ctx: Context): Int =
-    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_MODE, 1)
+    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_MODE, 1).let { if (it == 1 || it == 2) 1 else 0 }
 
 fun setThemeMode(ctx: Context, mode: Int) {
-    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_MODE, mode).apply()
+    val m = mode.coerceIn(0,1)
+    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_MODE, m).apply()
     ThemeVersion.version.value++
 }
 
@@ -73,10 +62,9 @@ object ThemeVersion {
 fun KaiTheme(content: @Composable () -> Unit) {
     ThemeVersion.version.value
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val mode = getThemeMode(ctx)
+    val mode = getThemeMode(ctx).coerceIn(0,1)
     val scheme = when (mode) {
         1 -> darkBannerScheme()
-        2 -> blackBannerScheme()
         else -> lightBannerScheme()
     }
     MaterialTheme(colorScheme = scheme, content = content)

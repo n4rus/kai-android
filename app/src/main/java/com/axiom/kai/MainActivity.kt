@@ -222,8 +222,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("🎨", style = MaterialTheme.typography.titleMedium)
                                     Spacer(Modifier.width(12.dp))
-                                    Text(Lang.t(ctx, "Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
-                                        "Tema: ${when (getThemeMode(ctx)) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"),
+                                    Text(Lang.t(ctx, "Theme: ${if (getThemeMode(ctx) == 1) "Dark" else "White"}",
+                                        "Tema: ${if (getThemeMode(ctx) == 1) "Escuro" else "Claro"}"),
                                         style = MaterialTheme.typography.bodyMedium)
                                     Spacer(Modifier.weight(1f))
                                     Text("▸", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -666,7 +666,7 @@ Column(Modifier.padding(12.dp)) {
         )
     }
     if (showThemePicker) {
-        val cur = getThemeMode(ctx)
+        val cur = getThemeMode(ctx).let { if (it == 1) 1 else 0 }
         AlertDialog(
             onDismissRequest = { showThemePicker = false },
             title = { Text(Lang.t(ctx, "Choose Theme", "Escolha o Tema")) },
@@ -674,8 +674,7 @@ Column(Modifier.padding(12.dp)) {
                 Column {
                     listOf(
                         0 to Lang.t(ctx, "White", "Claro"),
-                        1 to Lang.t(ctx, "Dark", "Escuro"),
-                        2 to Lang.t(ctx, "Black", "Preto")
+                        1 to Lang.t(ctx, "Dark", "Escuro")
                     ).forEach { (id, label) ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
