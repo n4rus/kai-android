@@ -102,6 +102,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var input by remember { mutableStateOf("") }
     var pickerExpanded by remember { mutableStateOf(false) }
     var historyExpanded by remember { mutableStateOf(false) }
+    var configExpanded by remember { mutableStateOf(false) }
     var showPhysics by remember { mutableStateOf(false) } // physics meters collapsed by default (beginner-friendly)
     var showPcSettings by remember { mutableStateOf(false) }
     var showGeminiSettings by remember { mutableStateOf(false) }
@@ -198,68 +199,80 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         }
     }
 
-Scaffold(
+    Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Kai") },
                 actions = {
-                    // Settings for Kai PC live
-                    TextButton(onClick = { showPcSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleMedium) }
-                    // Chat history drawer — continue a session or start new
-                    TextButton(onClick = { historyExpanded = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) }
-                    DropdownMenu(expanded = historyExpanded, onDismissRequest = { historyExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("✦", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.width(12.dp))
-                                Text(Lang.t(ctx, "Google Sign-In & API Keys", "Entrar com Google & Chaves API"), style = MaterialTheme.typography.bodyMedium)
-                            }},
-                            onClick = { showGeminiSettings = true; historyExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🎨", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.width(12.dp))
-                                Text(Lang.t(ctx, "Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
-                                    "Tema: ${when (getThemeMode(ctx)) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"),
-                                    style = MaterialTheme.typography.bodyMedium)
-                            }},
-                            onClick = {
-                                val next = (getThemeMode(ctx) + 1) % 3
-                                setThemeMode(ctx, next)
-                                Toast.makeText(ctx, Lang.t(ctx, "Theme → ${when (next) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
-                                    "Tema → ${when (next) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"), Toast.LENGTH_SHORT).show()
-                                historyExpanded = false
-                            }
-                        )
-                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("⚡", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.width(12.dp))
-                                Text(Lang.t(ctx, "VFE / Curvature — ${if (showPhysics) "ON" else "OFF"}", "VFE / Curvatura — ${if (showPhysics) "ATIVADO" else "DESATIVADO"}"),
-                                    style = MaterialTheme.typography.bodyMedium)
-                            }},
-                            onClick = { showPhysics = !showPhysics; historyExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🌐", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.width(12.dp))
-                                Text(Lang.t(ctx, "Language: ${if (Lang.isPt(ctx)) "Português" else "English"}", "Idioma: ${if (Lang.isPt(ctx)) "Português" else "English"}"),
-                                    style = MaterialTheme.typography.bodyMedium)
-                            }},
-                            onClick = {
-                                val n = Lang.toggle(ctx)
-                                Toast.makeText(ctx, Lang.t(ctx, "Language → ${if (n=="pt") "Português" else "English"}", "Idioma → ${if (n=="pt") "Português" else "English"}"), Toast.LENGTH_SHORT).show()
-                                historyExpanded = false
-                            }
-                        )
-                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Text(Lang.t(ctx, "✚ New chat", "✚ Nova conversa")) },
-                            onClick = { vm.newChat(ctx); historyExpanded = false }
-                        )
+                    // Config — all settings (⚙️)
+                    Box {
+                        TextButton(onClick = { configExpanded = true }) { Text("⚙️", style = MaterialTheme.typography.titleMedium) }
+                        DropdownMenu(expanded = configExpanded, onDismissRequest = { configExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("✦", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(Lang.t(ctx, "Google Sign-In & API Keys", "Entrar com Google & Chaves API"), style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = { showGeminiSettings = true; configExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🎨", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(Lang.t(ctx, "Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
+                                        "Tema: ${when (getThemeMode(ctx)) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"),
+                                        style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = {
+                                    val next = (getThemeMode(ctx) + 1) % 3
+                                    setThemeMode(ctx, next)
+                                    Toast.makeText(ctx, Lang.t(ctx, "Theme → ${when (next) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
+                                        "Tema → ${when (next) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"), Toast.LENGTH_SHORT).show()
+                                    configExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("⚡", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(Lang.t(ctx, "VFE / Curvature — ${if (showPhysics) "ON" else "OFF"}", "VFE / Curvatura — ${if (showPhysics) "ATIVADO" else "DESATIVADO"}"),
+                                        style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = { showPhysics = !showPhysics; configExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🌐", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(Lang.t(ctx, "Language: ${if (Lang.isPt(ctx)) "Português" else "English"}", "Idioma: ${if (Lang.isPt(ctx)) "Português" else "English"}"),
+                                        style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = {
+                                    val n = Lang.toggle(ctx)
+                                    Toast.makeText(ctx, Lang.t(ctx, "Language → ${if (n=="pt") "Português" else "English"}", "Idioma → ${if (n=="pt") "Português" else "English"}"), Toast.LENGTH_SHORT).show()
+                                    configExpanded = false
+                                }
+                            )
+                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🖥️", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(Lang.t(ctx, "Kai PC — Encrypted Live", "Kai PC — Ao Vivo Criptografado"), style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = { showPcSettings = true; configExpanded = false }
+                            )
+                        }
+                    }
+                    // Chat history drawer — only history (☰)
+                    Box {
+                        TextButton(onClick = { historyExpanded = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) }
+                        DropdownMenu(expanded = historyExpanded, onDismissRequest = { historyExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(Lang.t(ctx, "✚ New chat", "✚ Nova conversa")) },
+                                onClick = { vm.newChat(ctx); historyExpanded = false }
+                            )
                         // Search across all messages (Block D drawer UX)
                         var searchQ by remember { mutableStateOf("") }
                         var searchResults by remember { mutableStateOf(emptyList<SearchHit>()) }
@@ -311,6 +324,7 @@ Scaffold(
                                 onClick = { vm.switchChat(ctx, c.id); historyExpanded = false }
                             )
                         }
+                    }
                     }
                     // New chat quick button
                     TextButton(onClick = { vm.newChat(ctx) }) { Text("+", style = MaterialTheme.typography.titleLarge) }

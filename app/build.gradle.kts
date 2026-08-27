@@ -23,7 +23,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 2
-        versionName = "0.3.11-history-protected"
+        versionName = "0.3.12-menu-split"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
