@@ -108,6 +108,10 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var showGeminiSettings by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
     var showLangPicker by remember { mutableStateOf(false) }
+    var showAccount by remember { mutableStateOf(false) }
+    var showCreateAccount by remember { mutableStateOf(false) }
+    var showRecovery by remember { mutableStateOf(false) }
+    var showExportChats by remember { mutableStateOf(false) }
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
@@ -249,6 +253,23 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     Text("▸", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }},
                                 onClick = { showLangPicker = true; configExpanded = false }
+                            )
+                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🔐", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(if (AccountManager.isLoggedIn(ctx)) Lang.t(ctx, "Account: ${AccountManager.currentUsername(ctx) ?: AccountManager.currentEmail}", "Conta: ${AccountManager.currentUsername(ctx) ?: AccountManager.currentEmail}") else Lang.t(ctx, "Login / Create Account", "Entrar / Criar Conta"), style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = { showAccount = true; configExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("💾", style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(Lang.t(ctx, "Export chats to Download", "Exportar conversas"), style = MaterialTheme.typography.bodyMedium)
+                                }},
+                                onClick = { showExportChats = true; configExpanded = false }
                             )
                             HorizontalDivider(Modifier.padding(vertical = 4.dp))
                             DropdownMenuItem(
@@ -736,6 +757,239 @@ Column(Modifier.padding(12.dp)) {
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { showLangPicker = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
+        )
+    }
+    if (showAccount) {
+        val logged = AccountManager.isLoggedIn(ctx)
+        if (logged) {
+            val uname = AccountManager.currentUsername(ctx) ?: ""
+            val email = AccountManager.currentEmail ?: ""
+            AlertDialog(
+                onDismissRequest = { showAccount = false },
+                title = { Text(Lang.t(ctx, "Account", "Conta")) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(Lang.t(ctx, "Logged in as", "Conectado como") + " $uname", style = MaterialTheme.typography.bodyMedium)
+                        Text(email, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (AccountManager.isEncryptedMode()) {
+                            Text(Lang.t(ctx, "History encrypted ✓", "Histórico criptografado ✓"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                        } else {
+                            Text(Lang.t(ctx, "History not encrypted", "Histórico não criptografado"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        AccountManager.logout(ctx)
+                        Toast.makeText(ctx, Lang.t(ctx, "Logged out", "Desconectado"), Toast.LENGTH_SHORT).show()
+                        showAccount = false
+                    }) { Text(Lang.t(ctx, "Logout", "Sair")) }
+                },
+                dismissButton = { TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
+            )
+        } else {
+            var email by remember { mutableStateOf("") }
+            var pw by remember { mutableStateOf("") }
+            var err by remember { mutableStateOf<String?>(null) }
+            AlertDialog(
+                onDismissRequest = { showAccount = false },
+                title = { Text(Lang.t(ctx, "Login", "Entrar")) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = email, onValueChange = { email = it; err = null }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = pw, onValueChange = { pw = it; err = null }, label = { Text(Lang.t(ctx, "Password", "Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                        if (err != null) Text(err!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        TextButton(onClick = { showRecovery = true; showAccount = false }, modifier = Modifier.align(Alignment.Start)) { Text(Lang.t(ctx, "Forgot password?", "Esqueceu a senha?"), style = MaterialTheme.typography.labelSmall) }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(Lang.t(ctx, "No account?", "Sem conta?"), style = MaterialTheme.typography.labelSmall)
+                            TextButton(onClick = { showCreateAccount = true; showAccount = false }) { Text(Lang.t(ctx, "Create account", "Criar conta")) }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val (ok, msg) = AccountManager.login(ctx, email, pw)
+                        if (ok) {
+                            Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
+                            showAccount = false
+                            vm.initPersistence(ctx)
+                        } else err = msg
+                    }) { Text(Lang.t(ctx, "Login", "Entrar")) }
+                },
+                dismissButton = { TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
+            )
+        }
+    }
+    if (showCreateAccount) {
+        var username by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
+        var recoveryEmail by remember { mutableStateOf("") }
+        var pw by remember { mutableStateOf("") }
+        var err by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showCreateAccount = false },
+            title = { Text(Lang.t(ctx, "Create Account", "Criar Conta")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(value = username, onValueChange = { username = it; err = null }, label = { Text(Lang.t(ctx, "Username", "Nome de usuário")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = email, onValueChange = { email = it; err = null }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = recoveryEmail, onValueChange = { recoveryEmail = it }, label = { Text(Lang.t(ctx, "Recovery email (optional)", "Email de recuperação (opcional)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = pw, onValueChange = { pw = it; err = null }, label = { Text(Lang.t(ctx, "Password", "Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                    Text(Lang.t(ctx, "8+ chars, 1 uppercase, 1 special char", "8+ caracteres, 1 maiúscula, 1 especial"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (err != null) Text(err!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    Text(Lang.t(ctx, "History will be encrypted with your password", "Histórico será criptografado com sua senha"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val rec = if (recoveryEmail.isBlank()) email else recoveryEmail
+                    val (ok, msg) = AccountManager.createAccount(ctx, username, email, rec, pw)
+                    if (ok) {
+                        Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
+                        showCreateAccount = false
+                        showAccount = false
+                        vm.initPersistence(ctx)
+                    } else err = msg
+                }) { Text(Lang.t(ctx, "Create", "Criar")) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showCreateAccount = false; showAccount = true }) { Text(Lang.t(ctx, "Back", "Voltar")) }
+                    TextButton(onClick = { showCreateAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
+                }
+            }
+        )
+    }
+    if (showRecovery) {
+        var recEmail by remember { mutableStateOf("") }
+        var token by remember { mutableStateOf("") }
+        var newPw by remember { mutableStateOf("") }
+        var msg by remember { mutableStateOf<String?>(null) }
+        var isError by remember { mutableStateOf(false) }
+        var sent by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { showRecovery = false },
+            title = { Text(Lang.t(ctx, "Recover Password", "Recuperar Senha")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (!sent) {
+                        Text(Lang.t(ctx, "Enter your recovery email to receive a reset link", "Digite seu email de recuperação para receber o link"), style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(value = recEmail, onValueChange = { recEmail = it }, label = { Text(Lang.t(ctx, "Recovery email", "Email de recuperação")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    } else {
+                        Text(Lang.t(ctx, "Enter the token sent to your email and new password", "Digite o token enviado e a nova senha"), style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text(Lang.t(ctx, "Recovery token", "Token de recuperação")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = newPw, onValueChange = { newPw = it }, label = { Text(Lang.t(ctx, "New password", "Nova senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                        Text(Lang.t(ctx, "8+ chars, 1 uppercase, 1 special char", "8+ caracteres, 1 maiúscula, 1 especial"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (msg != null) Text(msg!!, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            confirmButton = {
+                if (!sent) {
+                    TextButton(onClick = {
+                        val (ok, m) = AccountManager.requestRecovery(ctx, recEmail)
+                        msg = m; isError = !ok; if (ok) sent = true
+                    }) { Text(Lang.t(ctx, "Send link", "Enviar link")) }
+                } else {
+                    TextButton(onClick = {
+                        val (ok, m) = AccountManager.resetPassword(ctx, token, newPw)
+                        msg = m; isError = !ok
+                        if (ok) {
+                            Toast.makeText(ctx, m, Toast.LENGTH_SHORT).show()
+                            showRecovery = false
+                            vm.initPersistence(ctx)
+                        }
+                    }) { Text(Lang.t(ctx, "Reset", "Redefinir")) }
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (sent) TextButton(onClick = { sent = false; msg = null }) { Text(Lang.t(ctx, "Back", "Voltar")) }
+                    TextButton(onClick = { showRecovery = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
+                }
+            }
+        )
+    }
+    if (showExportChats) {
+        val chats = vm.chatList.collectAsState().value
+        var selected by remember { mutableStateOf(setOf<String>()) }
+        AlertDialog(
+            onDismissRequest = { showExportChats = false },
+            title = { Text(Lang.t(ctx, "Export chats", "Exportar conversas")) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(Lang.t(ctx, "Select chats to save as text files in Download", "Selecione conversas para salvar como txt em Download"), style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable {
+                        selected = if (selected.size == chats.size) emptySet() else chats.map { it.id }.toSet()
+                    }.padding(vertical = 4.dp)) {
+                        Checkbox(checked = selected.size == chats.size && chats.isNotEmpty(), onCheckedChange = {
+                            selected = if (it) chats.map { c -> c.id }.toSet() else emptySet()
+                        })
+                        Text(Lang.t(ctx, "Select all", "Selecionar todas"), style = MaterialTheme.typography.labelMedium)
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    chats.forEach { c ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                            selected = if (selected.contains(c.id)) selected - c.id else selected + c.id
+                        }.padding(vertical = 4.dp)) {
+                            Checkbox(checked = selected.contains(c.id), onCheckedChange = {
+                                selected = if (it) selected + c.id else selected - c.id
+                            })
+                            Spacer(Modifier.width(8.dp))
+                            Text(c.title.take(40), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    if (chats.isEmpty()) Text(Lang.t(ctx, "No chats to export", "Nenhuma conversa para exportar"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (selected.isEmpty()) {
+                        Toast.makeText(ctx, Lang.t(ctx, "Select at least one chat", "Selecione pelo menos uma conversa"), Toast.LENGTH_SHORT).show()
+                        return@TextButton
+                    }
+                    var count = 0
+                    selected.forEach { cid ->
+                        val title = chats.find { it.id == cid }?.title ?: cid.take(8)
+                        val msgs = try { kotlinx.coroutines.runBlocking { KaiDb.get(ctx).messageDao().messagesOnce(cid) } } catch (_: Exception) { emptyList() }
+                        val content = buildString {
+                            append("Chat: $title\n")
+                            append("Exported: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}\n")
+                            append("Messages: ${msgs.size}\n")
+                            append("=".repeat(40) + "\n\n")
+                            msgs.forEach { m ->
+                                val role = m.role
+                                val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(m.ts))
+                                val text = AccountManager.decrypt(m.text)
+                                append("[$time] $role: $text\n\n")
+                            }
+                        }
+                        try {
+                            val safeTitle = title.replace(Regex("[^A-Za-z0-9_-]"), "_").take(30)
+                            val fileName = "kai_${safeTitle}_${cid.take(8)}.txt"
+                            val downloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                            var f = java.io.File(downloads, fileName)
+                            var ok = false
+                            try {
+                                f.writeText(content)
+                                ok = f.exists()
+                            } catch (_: Exception) {}
+                            if (!ok) {
+                                val fallback = java.io.File(ctx.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), fileName)
+                                fallback.parentFile?.mkdirs()
+                                fallback.writeText(content)
+                                f = fallback
+                            }
+                            android.util.Log.i("Export", "saved ${f.path} ${f.length()} bytes")
+                            count++
+                        } catch (e: Exception) { android.util.Log.e("Export", "failed $cid: $e") }
+                    }
+                    Toast.makeText(ctx, Lang.t(ctx, "Exported $count chats to Download", "Exportadas $count conversas para Download"), Toast.LENGTH_LONG).show()
+                    showExportChats = false
+                }) { Text(Lang.t(ctx, "Export", "Exportar")) }
+            },
+            dismissButton = { TextButton(onClick = { showExportChats = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
         )
     }
 }
