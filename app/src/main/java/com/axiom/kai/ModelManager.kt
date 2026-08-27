@@ -210,6 +210,18 @@ class ModelManager(private val ctx: Context) {
         return 0L
     }
 
+    /** Clean stale 0-byte partial downloads left from interrupted sessions */
+    fun cleanStaleDownloads() {
+        modelsDir.listFiles()?.forEach { f ->
+            val name = f.name
+            if ((name.endsWith(".part") && f.length() == 0L) ||
+                (name.endsWith(".gguf") && f.length() == 0L)) {
+                android.util.Log.w("ModelManager", "Removing stale 0-byte file: ${f.name}")
+                f.delete()
+            }
+        }
+    }
+
     /** True if a download is incomplete (has .part or small partial) */
     fun isIncomplete(entry: ModelEntry): Boolean {
         if (isDownloaded(entry)) return false

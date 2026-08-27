@@ -44,8 +44,9 @@ class ChatViewModel : ViewModel() {
 
     /** Launch-time auto-recovery: if current model's GGUF is anywhere on disk, sync + load it (fixes restart-during-download) */
     fun autoLoadIfAvailable(ctx: Context) {
-        val entry = ModelCatalog.byTag(_model.value) ?: return
         val mgr = ModelManager(ctx)
+        mgr.cleanStaleDownloads() // remove 0-byte stale .part files from interrupted downloads
+        val entry = ModelCatalog.byTag(_model.value) ?: return
         if (mgr.isDownloaded(entry)) {
             viewModelScope.launch {
                 val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { mgr.autoRecoverAndLoad(entry) }
@@ -187,11 +188,14 @@ class ChatViewModel : ViewModel() {
             val info = KaiBridge.lastGgufInfo() // path|size|is_gguf|version
             val parts = info.split("|")
             if (parts.size >= 4) {
-                val name = java.io.File(parts[0]).name
+                val file = java.io.File(parts[0])
+                val name = file.name
                 val mb = parts[1].toLongOrNull()?.let { it/1024/1024 } ?: 0
                 val ok = parts[2].toBoolean()
                 val ver = parts[3]
-                if (ok) "$name ${mb}MB v$ver ✓" else "$name invalid ✗"
+                // Re-validate: if Rust says invalid but file exists + >1MB, trust the file
+                val actuallyValid = ok || (file.exists() && file.length() > 1024*1024)
+                if (actuallyValid) "$name ${mb}MB v$ver ✓" else "$name (0-byte stale file — picker ⬇ to re-download)"
             } else info
         } catch (_: Throwable) {
             val mgr = ModelManager(ctx)
