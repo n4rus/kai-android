@@ -106,6 +106,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var showPhysics by remember { mutableStateOf(false) } // physics meters collapsed by default (beginner-friendly)
     var showPcSettings by remember { mutableStateOf(false) }
     var showGeminiSettings by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
+    var showLangPicker by remember { mutableStateOf(false) }
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
@@ -223,14 +225,10 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     Text(Lang.t(ctx, "Theme: ${when (getThemeMode(ctx)) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
                                         "Tema: ${when (getThemeMode(ctx)) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"),
                                         style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.weight(1f))
+                                    Text("▸", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }},
-                                onClick = {
-                                    val next = (getThemeMode(ctx) + 1) % 3
-                                    setThemeMode(ctx, next)
-                                    Toast.makeText(ctx, Lang.t(ctx, "Theme → ${when (next) { 0 -> "White"; 1 -> "Dark"; else -> "Black" }}",
-                                        "Tema → ${when (next) { 0 -> "Claro"; 1 -> "Escuro"; else -> "Preto" }}"), Toast.LENGTH_SHORT).show()
-                                    configExpanded = false
-                                }
+                                onClick = { showThemePicker = true; configExpanded = false }
                             )
                             DropdownMenuItem(
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) {
@@ -247,12 +245,10 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     Spacer(Modifier.width(12.dp))
                                     Text(Lang.t(ctx, "Language: ${if (Lang.isPt(ctx)) "Português" else "English"}", "Idioma: ${if (Lang.isPt(ctx)) "Português" else "English"}"),
                                         style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.weight(1f))
+                                    Text("▸", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }},
-                                onClick = {
-                                    val n = Lang.toggle(ctx)
-                                    Toast.makeText(ctx, Lang.t(ctx, "Language → ${if (n=="pt") "Português" else "English"}", "Idioma → ${if (n=="pt") "Português" else "English"}"), Toast.LENGTH_SHORT).show()
-                                    configExpanded = false
-                                }
+                                onClick = { showLangPicker = true; configExpanded = false }
                             )
                             HorizontalDivider(Modifier.padding(vertical = 4.dp))
                             DropdownMenuItem(
@@ -667,6 +663,80 @@ Column(Modifier.padding(12.dp)) {
                 }) { Text("Save") }
             },
             dismissButton = { TextButton(onClick = { showGeminiSettings = false }) { Text("Close") } }
+        )
+    }
+    if (showThemePicker) {
+        val cur = getThemeMode(ctx)
+        AlertDialog(
+            onDismissRequest = { showThemePicker = false },
+            title = { Text(Lang.t(ctx, "Choose Theme", "Escolha o Tema")) },
+            text = {
+                Column {
+                    listOf(
+                        0 to Lang.t(ctx, "White", "Claro"),
+                        1 to Lang.t(ctx, "Dark", "Escuro"),
+                        2 to Lang.t(ctx, "Black", "Preto")
+                    ).forEach { (id, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                setThemeMode(ctx, id)
+                                Toast.makeText(ctx, Lang.t(ctx, "Theme → $label", "Tema → $label"), Toast.LENGTH_SHORT).show()
+                                showThemePicker = false
+                            }.padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(selected = cur == id, onClick = {
+                                setThemeMode(ctx, id)
+                                Toast.makeText(ctx, Lang.t(ctx, "Theme → $label", "Tema → $label"), Toast.LENGTH_SHORT).show()
+                                showThemePicker = false
+                            })
+                            Spacer(Modifier.width(12.dp))
+                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                            if (cur == id) {
+                                Spacer(Modifier.weight(1f))
+                                Text("✓", color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showThemePicker = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
+        )
+    }
+    if (showLangPicker) {
+        val curLang = Lang.get(ctx)
+        AlertDialog(
+            onDismissRequest = { showLangPicker = false },
+            title = { Text(Lang.t(ctx, "Choose Language", "Escolha o Idioma")) },
+            text = {
+                Column {
+                    listOf("en" to "English", "pt" to "Português").forEach { (code, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                Lang.set(ctx, code)
+                                Toast.makeText(ctx, Lang.t(ctx, "Language → $label", "Idioma → $label"), Toast.LENGTH_SHORT).show()
+                                showLangPicker = false
+                            }.padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(selected = curLang == code, onClick = {
+                                Lang.set(ctx, code)
+                                Toast.makeText(ctx, Lang.t(ctx, "Language → $label", "Idioma → $label"), Toast.LENGTH_SHORT).show()
+                                showLangPicker = false
+                            })
+                            Spacer(Modifier.width(12.dp))
+                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                            if (curLang == code) {
+                                Spacer(Modifier.weight(1f))
+                                Text("✓", color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showLangPicker = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
         )
     }
 }
