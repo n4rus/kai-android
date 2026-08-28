@@ -862,6 +862,7 @@ Column(Modifier.padding(12.dp)) {
         var email by remember { mutableStateOf("") }
         var recoveryEmail by remember { mutableStateOf("") }
         var pw by remember { mutableStateOf("") }
+        var pwConfirm by remember { mutableStateOf("") }
         var err by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showCreateAccount = false },
@@ -872,6 +873,7 @@ Column(Modifier.padding(12.dp)) {
                     OutlinedTextField(value = email, onValueChange = { email = it; err = null }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = recoveryEmail, onValueChange = { recoveryEmail = it }, label = { Text(Lang.t(ctx, "Recovery email (optional)", "Email de recuperação (opcional)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = pw, onValueChange = { pw = it; err = null }, label = { Text(Lang.t(ctx, "Password", "Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                    OutlinedTextField(value = pwConfirm, onValueChange = { pwConfirm = it; err = null }, label = { Text(Lang.t(ctx, "Confirm Password", "Confirmar Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                     Text(Lang.t(ctx, "8+ chars, 1 uppercase, 1 special char", "8+ caracteres, 1 maiúscula, 1 especial"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (err != null) Text(err!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     Text(Lang.t(ctx, "History will be encrypted with your password", "Histórico será criptografado com sua senha"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -880,7 +882,7 @@ Column(Modifier.padding(12.dp)) {
             confirmButton = {
                 TextButton(onClick = {
                     val rec = if (recoveryEmail.isBlank()) email else recoveryEmail
-                    val (ok, msg) = AccountManager.createAccount(ctx, username, email, rec, pw)
+                    val (ok, msg) = AccountManager.createAccount(ctx, username, email, rec, pw, pwConfirm)
                     if (ok) {
                         Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
                         showCreateAccount = false

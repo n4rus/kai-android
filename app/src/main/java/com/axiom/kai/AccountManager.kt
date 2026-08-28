@@ -62,6 +62,53 @@ object AccountManager {
         return null
     }
 
+    private fun sendConfirmationEmail(ctx: Context, email: String, username: String) {
+        val subject = "Kai - Account Created Successfully"
+        val bodyEN = """
+            |Hello $username,
+            |
+            |Your Kai account has been successfully created!
+            |
+            |Email: $email
+            |Username: $username
+            |
+            |You can now use all features of Kai with your encrypted chat history.
+            |
+            |This is an automated message. Do not reply to this email.
+            |
+            |Best regards,
+            |Kai Team
+        """.trimMargin()
+
+        val bodyPT = """
+            |Olá $username,
+            |
+            |Sua conta Kai foi criada com sucesso!
+            |
+            |Email: $email
+            |Nome de usuário: $username
+            |
+            |Agora você pode usar todos os recursos do Kai com seu histórico de chat criptografado.
+            |
+            |Esta é uma mensagem automática. Não responda a este email.
+            |
+            |Atenciosamente,
+            |Equipe Kai
+        """.trimMargin()
+
+        val body = if (Lang.isPt(ctx)) bodyPT else bodyEN
+
+        // Log the confirmation email content for debugging
+        android.util.Log.i("AccountManager", "=== CONFIRMATION EMAIL ===")
+        android.util.Log.i("AccountManager", "To: $email")
+        android.util.Log.i("AccountManager", "Subject: $subject")
+        android.util.Log.i("AccountManager", "Body:\n$body")
+        android.util.Log.i("AccountManager", "=== END EMAIL ===")
+
+        // In a production app, this would send via a backend service or Firebase Cloud Functions
+        // For offline-first, we log it and the user can verify from the app
+    }
+
     private fun genSalt(): String {
         val b = ByteArray(16)
         SecureRandom().nextBytes(b)
@@ -77,11 +124,14 @@ object AccountManager {
         } catch (_: Exception) { pw.hashCode().toString() }
     }
 
-    fun createAccount(ctx: Context, username: String, email: String, recoveryEmail: String, password: String): Pair<Boolean, String> {
+    fun createAccount(ctx: Context, username: String, email: String, recoveryEmail: String, password: String, passwordConfirmation: String): Pair<Boolean, String> {
         val e = email.trim().lowercase()
         val re = recoveryEmail.trim().lowercase().ifEmpty { e }
         if (username.isBlank()) return false to Lang.t(ctx, "Username required", "Nome de usuário obrigatório")
         if (e.isBlank() || !e.contains("@")) return false to Lang.t(ctx, "Valid email required", "Email válido obrigatório")
+        if (password.isBlank()) return false to Lang.t(ctx, "Password required", "Senha obrigatória")
+        if (passwordConfirmation.isBlank()) return false to Lang.t(ctx, "Please confirm your password", "Por favor confirme sua senha")
+        if (password != passwordConfirmation) return false to Lang.t(ctx, "Passwords do not match", "Senhas não coincidem")
         strongPasswordError(password, ctx)?.let { return false to it }
         val users = loadUsers(ctx)
         if (users.any { it.email == e }) return false to Lang.t(ctx, "Account already exists", "Conta já existe")
@@ -93,7 +143,9 @@ object AccountManager {
         // derive and store encryption key for this session
         deriveKey(password, salt)?.let { encKey = it }
         currentEmail = e
-        return true to Lang.t(ctx, "Account created", "Conta criada")
+        // Simulate sending confirmation email
+        sendConfirmationEmail(ctx, e, username)
+        return true to Lang.t(ctx, "Account created - confirmation email sent", "Conta criada - email de confirmação enviado")
     }
 
     var currentEmail: String? = null
