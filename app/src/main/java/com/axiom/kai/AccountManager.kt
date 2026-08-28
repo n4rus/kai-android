@@ -181,6 +181,16 @@ object AccountManager {
         encKey = null
     }
 
+    /** Permanently delete the currently-logged-in account. Returns true on success. */
+    fun deleteAccount(ctx: Context): Boolean {
+        val cur = prefs(ctx).getString(KEY_CURRENT, null) ?: return false
+        val users = loadUsers(ctx)
+        val updated = users.filter { it.email != cur }
+        saveUsers(ctx, updated)
+        logout(ctx)
+        return true
+    }
+
     // recovery: generate token, store, simulate sending email
     fun requestRecovery(ctx: Context, recoveryEmail: String): Pair<Boolean, String> {
         val re = recoveryEmail.trim().lowercase()

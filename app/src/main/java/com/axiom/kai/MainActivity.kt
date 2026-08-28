@@ -801,6 +801,7 @@ Column(Modifier.padding(12.dp)) {
         if (logged) {
             val uname = AccountManager.currentUsername(ctx) ?: ""
             val email = AccountManager.currentEmail ?: ""
+            var showDeleteConfirm by remember { mutableStateOf(false) }
             AlertDialog(
                 onDismissRequest = { showAccount = false },
                 title = { Text(Lang.t(ctx, "Account", "Conta")) },
@@ -822,8 +823,52 @@ Column(Modifier.padding(12.dp)) {
                         showAccount = false
                     }) { Text(Lang.t(ctx, "Logout", "Sair")) }
                 },
-                dismissButton = { TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { showDeleteConfirm = true }) {
+                            Text(Lang.t(ctx, "Delete Account", "Excluir Conta"), color = MaterialTheme.colorScheme.error)
+                        }
+                        TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
+                    }
+                }
             )
+            // Delete account confirmation dialog
+            if (showDeleteConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteConfirm = false },
+                    title = { Text(Lang.t(ctx, "Delete Account?", "Excluir Conta?"), color = MaterialTheme.colorScheme.error) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(Lang.t(ctx,
+                                "This will permanently delete your account and all encrypted chat history. This action cannot be undone.",
+                                "Isso excluirá permanentemente sua conta e todo o histórico de chat criptografado. Esta ação não pode ser desfeita."),
+                                style = MaterialTheme.typography.bodyMedium)
+                            Text(Lang.t(ctx, "Are you sure?", "Tem certeza?"), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val currentEmail = AccountManager.currentEmail ?: ""
+                            val deleted = AccountManager.deleteAccount(ctx)
+                            if (deleted) {
+                                Toast.makeText(ctx, Lang.t(ctx, "Account deleted", "Conta excluída"), Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(ctx, Lang.t(ctx, "Delete failed", "Falha ao excluir"), Toast.LENGTH_SHORT).show()
+                            }
+                            showDeleteConfirm = false
+                            showAccount = false
+                            vm.initPersistence(ctx)
+                        }) {
+                            Text(Lang.t(ctx, "Yes, Delete", "Sim, Excluir"), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteConfirm = false }) {
+                            Text(Lang.t(ctx, "Cancel", "Cancelar"))
+                        }
+                    }
+                )
+            }
         } else {
             var email by remember { mutableStateOf("") }
             var pw by remember { mutableStateOf("") }
