@@ -21,7 +21,7 @@ object AccountManager {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun loadUsers(ctx: Context): MutableList<User> {
+    internal fun loadUsers(ctx: Context): MutableList<User> {
         val json = prefs(ctx).getString(KEY_USERS, "[]") ?: "[]"
         return try {
             val arr = org.json.JSONArray(json)
@@ -34,7 +34,7 @@ object AccountManager {
         } catch (_: Exception) { mutableListOf() }
     }
 
-    private fun saveUsers(ctx: Context, users: List<User>) {
+    internal fun saveUsers(ctx: Context, users: List<User>) {
         val arr = org.json.JSONArray()
         users.forEach { u ->
             val o = org.json.JSONObject()
@@ -47,7 +47,6 @@ object AccountManager {
         }
         prefs(ctx).edit().putString(KEY_USERS, arr.toString()).apply()
     }
-
     fun isStrongPassword(pw: String): Boolean {
         if (pw.length < 8) return false
         if (!pw.any { it.isUpperCase() }) return false
@@ -149,7 +148,7 @@ object AccountManager {
     }
 
     var currentEmail: String? = null
-        private set
+        internal set
     var encKey: SecretKeySpec? = null
         private set
 

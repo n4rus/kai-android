@@ -833,6 +833,36 @@ Column(Modifier.padding(12.dp)) {
                 title = { Text(Lang.t(ctx, "Login", "Entrar")) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Google sign-in button (official Google style, like most modern apps)
+                        OutlinedButton(
+                            onClick = { googleSignInLauncher.launch(GoogleAuthManager.signInIntent(ctx)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                // Inline Google "G" logo
+                                Box(
+                                    modifier = Modifier.size(20.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("G", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color(0xFF4285F4))
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(Lang.t(ctx, "Sign in with Google", "Entrar com Google"), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        // Divider with "or"
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            androidx.compose.material3.HorizontalDivider(modifier = Modifier.weight(1f))
+                            Text("  " + Lang.t(ctx, "or", "ou") + "  ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            androidx.compose.material3.HorizontalDivider(modifier = Modifier.weight(1f))
+                        }
                         OutlinedTextField(value = email, onValueChange = { email = it; err = null }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = pw, onValueChange = { pw = it; err = null }, label = { Text(Lang.t(ctx, "Password", "Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                         if (err != null) Text(err!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)

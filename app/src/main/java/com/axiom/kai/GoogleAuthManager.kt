@@ -3,14 +3,17 @@ package com.axiom.kai
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.util.Base64
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 
 /**
- * Google Sign-In for Gemini — gates the feature, no server auth.
- * After sign-in, user pastes Gemini API key (free from aistudio.google.com).
+ * Google Sign-In for Kai account login and Gemini API access.
+ * Supports two modes:
+ * 1. Account login: creates/links a local Kai account with the Google email
+ * 2. Gemini API: gates the feature with a free API key from aistudio.google.com
  * If sign-in fails (e.g. error 10 = missing OAuth client config),
  * the app falls back to: user pastes API key directly — Gemini free tier works with just the key.
  */
@@ -27,19 +30,26 @@ object GoogleAuthManager {
     /** Returns the sign-in intent; caller starts it via startActivityForResult */
     fun signInIntent(ctx: Context): Intent = client(ctx).signInIntent
 
-    /** Handles the result from Google Sign-In.
-     *  - Success: marks logged-in + returns account email.
-     *  - Error 10 (DEVELOPER_ERROR): falls back to API-key path silently.
-     *  - Other errors: passes through the status code.
+    /**
+     * Handles the result from Google Sign-In.
+     * - Success: creates/links a local Kai account with the Google email, then calls onResult.
+     * - Error 10 (DEVELOPER_ERROR): falls back to API-key path silently.
+     * - Other errors: passes through the status code.
      */
-fun handleResult(ctx: Context, data: Intent?, onResult: (Boolean, String) -> Unit) {
+    fun handleResult(ctx: Context, data: Intent?, onResult: (Boolean, String) -> Unit) {
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val acct = task.getResult(ApiException::class.java)
             if (acct != null) {
+                val email = acct.email ?: return onResult(false, "no email")
+                val displayName = acct.displayName ?: email.substringBefore("@")
+                // Create or update local Kai account with this Google email
+                linkGoogleAccount(ctx, email, displayName)
                 GeminiClient.setLoggedIn(ctx, true)
-                onResult(true, acct.email ?: "signed in")
-            } else onResult(false, "no account")
+                onResult(true, email)
+            } else {
+                onResult(false, "no account")
+            }
         } catch (e: ApiException) {
             val code = e.statusCode
             if (code == 10) {
@@ -48,6 +58,33 @@ fun handleResult(ctx: Context, data: Intent?, onResult: (Boolean, String) -> Uni
             } else {
                 onResult(false, "sign-in failed: $code")
             }
+        }
+    }
+
+    /** Links a Google account to a local Kai account (creates if not exists, updates if exists) */
+    private fun linkGoogleAccount(ctx: Context, email: String, displayName: String) {
+        val e = email.trim().lowercase()
+        val users = AccountManager.loadUsers(ctx)
+        val existing = users.find { it.email == e }
+        if (existing != null) {
+            // Already exists — just log in
+            ctx.getSharedPreferences("kai_accounts", Context.MODE_PRIVATE)
+                .edit().putString("current_email", e).apply()
+            AccountManager.currentEmail = e
+        } else {
+            // Create new Kai account linked to Google
+            val saltBytes = ByteArray(16)
+            java.security.SecureRandom().nextBytes(saltBytes)
+            val salt = Base64.encodeToString(saltBytes, Base64.NO_WRAP)
+            // Google accounts use a special "google_auth" hash marker (no password-based encryption)
+            val googleHash = "GOOGLE:" + email
+            val googleUser = AccountManager.User(displayName.trim(), e, e, salt, googleHash)
+            val updated = users.toMutableList()
+            updated.add(googleUser)
+            AccountManager.saveUsers(ctx, updated)
+            ctx.getSharedPreferences("kai_accounts", Context.MODE_PRIVATE)
+                .edit().putString("current_email", e).apply()
+            AccountManager.currentEmail = e
         }
     }
 
