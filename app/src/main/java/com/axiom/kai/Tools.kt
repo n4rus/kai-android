@@ -406,15 +406,35 @@ object Tools {
     /** System prompt section describing tools (injected so Kai knows its abilities) */
     fun toolsPrompt(ctx: Context): String {
         val ws = File(ctx.filesDir, "workspace")
-        return "[Tools] You are a full device companion + knowledge worker. Available: " +
-            "web browse ('browse example.com'), web search ('/search query'), " +
-            "knowledge base ('/ingest <url>' to fetch+store a page, '/recall <q>' to search it; I auto-recall for every turn), " +
-            "PDF reading ('/pdf file.pdf' — auto-detected on /cat too), image facts ('/img path.jpg'; full vision via Kai-PC), " +
-            "files (/ls, /cat path, /write name.txt: content), sandbox shell ('> cmd' or '/shell cmd'), " +
-            "apps ('/apps [filter]' list, '/openapp name' launch), browser open ('/url url'), " +
-            "alarms ('/alarm HH:MM label'), calendar events ('/event Title @ yyyy-MM-dd HH:mm'), " +
-            "device status ('/battery'), notes ('/note text'). " +
-            "When the user asks you to do something on the phone (open app, set alarm, add event, check battery, ingest a page), " +
-            "tell them the exact command or use it. Workspace: ${ws.absolutePath}. [/Tools]\n\n"
+        val isPt = Lang.isPt(ctx)
+        return if (isPt) {
+            "[Tools] Você é um companheiro completo do aparelho + trabalhador de conhecimento. Disponível: " +
+                "navegação web ('browse example.com'), busca web ('/search query'), " +
+                "base de conhecimento ('/ingest <url>' para buscar+armazenar página, '/recall <q>' para buscar; auto-recall a cada turno), " +
+                "leitura PDF ('/pdf arquivo.pdf' — auto-detectado no /cat também), fatos de imagem ('/img caminho.jpg'; visão completa via Kai-PC), " +
+                "arquivos (/ls, /cat caminho, /write nome.txt: conteúdo), shell sandbox ('> cmd' ou '/shell cmd'), " +
+                "apps ('/apps [filtro]' lista, '/openapp nome' abre), abrir navegador ('/url url'), " +
+                "alarmes ('/alarm HH:MM etiqueta'), eventos de calendário ('/event Título @ yyyy-MM-dd HH:mm'), " +
+                "status do aparelho ('/battery'), notas ('/note texto'), " +
+                "conta e criptografia (login em ⚙️ → 🔐 com senha forte 8+1 maiúscula+1 especial, histórico criptografado AES), " +
+                "exportar conversas (⚙️ → 💾 seleciona chats e salva um .txt por chat em Download), " +
+                "Kai PC remoto criptografado (⚙️ → 🖥️). " +
+                "Quando o usuário pedir algo no celular (abrir app, alarme, evento, bateria, ingerir página), " +
+                "diga o comando exato ou use-o. Workspace: ${ws.absolutePath}. [/Tools]\n\n"
+        } else {
+            "[Tools] You are a full device companion + knowledge worker. Available: " +
+                "web browse ('browse example.com'), web search ('/search query'), " +
+                "knowledge base ('/ingest <url>' to fetch+store a page, '/recall <q>' to search it; I auto-recall for every turn), " +
+                "PDF reading ('/pdf file.pdf' — auto-detected on /cat too), image facts ('/img path.jpg'; full vision via Kai-PC), " +
+                "files (/ls, /cat path, /write name.txt: content), sandbox shell ('> cmd' or '/shell cmd'), " +
+                "apps ('/apps [filter]' list, '/openapp name' launch), browser open ('/url url'), " +
+                "alarms ('/alarm HH:MM label'), calendar events ('/event Title @ yyyy-MM-dd HH:mm'), " +
+                "device status ('/battery'), notes ('/note text'), " +
+                "account & encryption (login in ⚙️ → 🔐 with strong password 8+1 caps+1 special, history AES encrypted), " +
+                "export chats (⚙️ → 💾 select chats and save one .txt per chat to Download), " +
+                "remote Kai PC encrypted (⚙️ → 🖥️). " +
+                "When the user asks you to do something on the phone (open app, set alarm, add event, check battery, ingest a page), " +
+                "tell them the exact command or use it. Workspace: ${ws.absolutePath}. [/Tools]\n\n"
+        }
     }
 }
