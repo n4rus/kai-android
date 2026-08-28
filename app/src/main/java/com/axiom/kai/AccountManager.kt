@@ -2,6 +2,9 @@ package com.axiom.kai
 
 import android.content.Context
 import android.util.Base64
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
@@ -92,15 +95,29 @@ Esta é uma mensagem automática. Não responda a este email.
 Atenciosamente,
 Equipe Kai"""
 
-        val body = if (Lang.isPt(ctx)) bodyPT else bodyEN
+        val textBody = if (Lang.isPt(ctx)) bodyPT else bodyEN
+        val htmlBody = textBody.replace("\n", "<br>")
         val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
-        val fullEmail = "Subject: $subject\nTo: $email\nDate: $timestamp\n\n$body"
 
-        // Store locally so user can see it in-app (offline-first: no real email backend)
+        // Local inbox copy (always available, even if email fails)
+        val fullEmail = "Subject: $subject\nTo: $email\nDate: $timestamp\n\n$textBody"
         prefs(ctx).edit().putString(KEY_CONFIRMATION, fullEmail).apply()
 
-        // Also log for debugging
-        android.util.Log.i("AccountManager", "=== CONFIRMATION EMAIL SENT ===")
+        // Try real SMTP via Kai PC server if configured
+        if (KaiPcClient.isConfigured(ctx)) {
+            GlobalScope.launch(Dispatchers.IO) {
+                val result = KaiPcClient.sendEmail(ctx, email, subject, htmlBody, textBody)
+                if (result.isSuccess) {
+                    android.util.Log.i("AccountManager", "✓ Real confirmation email sent to $email via Kai PC SMTP")
+                } else {
+                    android.util.Log.w("AccountManager", "⚠ Could not send real email: ${result.exceptionOrNull()?.message}")
+                }
+            }
+        } else {
+            android.util.Log.i("AccountManager", "Email queued (Kai PC not configured — local copy in 'View Email' dialog)")
+        }
+
+        android.util.Log.i("AccountManager", "=== CONFIRMATION EMAIL ===")
         android.util.Log.i("AccountManager", fullEmail)
         android.util.Log.i("AccountManager", "=== END ===")
     }
@@ -191,17 +208,33 @@ Equipe Kai"""
         return true
     }
 
-    // recovery: generate token, store, simulate sending email
+    // recovery: generate token, send real email via Kai PC SMTP if available
     fun requestRecovery(ctx: Context, recoveryEmail: String): Pair<Boolean, String> {
         val re = recoveryEmail.trim().lowercase()
         val users = loadUsers(ctx)
         val u = users.find { it.recoveryEmail == re || it.email == re } ?: return false to Lang.t(ctx, "Recovery email not found", "Email de recuperação não encontrado")
         val token = (100000..999999).random().toString() + "_" + System.currentTimeMillis().toString().takeLast(6)
         prefs(ctx).edit().putString(KEY_RECOVERY_TOKEN, token).putString(KEY_RECOVERY_EMAIL, u.email).apply()
-        // simulate sending email: log and return link
         val link = "kai://recovery?token=$token&email=${u.email}"
         android.util.Log.i("AccountManager", "recovery link for ${u.email}: $link")
-        return true to Lang.t(ctx, "Recovery link sent to $re", "Link de recuperação enviado para $re") + "\n$link"
+
+        val subject = "Kai — Password Recovery"
+        val textBody = "Hello ${u.username},\n\nWe received a request to reset your Kai password.\n\nYour recovery code is: $token\n\nOr click the link: $link\n\nIf you didn't request this, ignore this email.\n\nKai Team"
+        val htmlBody = textBody.replace("\n", "<br>")
+
+        if (KaiPcClient.isConfigured(ctx)) {
+            GlobalScope.launch(Dispatchers.IO) {
+                val result = KaiPcClient.sendEmail(ctx, u.email, subject, htmlBody, textBody)
+                if (result.isSuccess) {
+                    android.util.Log.i("AccountManager", "✓ Real recovery email sent to ${u.email}")
+                } else {
+                    android.util.Log.w("AccountManager", "⚠ Recovery email send failed: ${result.exceptionOrNull()?.message}")
+                }
+            }
+            return true to Lang.t(ctx, "Recovery link sent to $re", "Link de recuperação enviado para $re") + "\n$link"
+        } else {
+            return true to Lang.t(ctx, "Recovery link generated (Kai PC not configured for real email)", "Link de recuperação gerado (Kai PC não configurado para email real)") + "\n$link"
+        }
     }
 
     fun resetPassword(ctx: Context, token: String, newPassword: String): Pair<Boolean, String> {

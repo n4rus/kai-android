@@ -202,6 +202,62 @@ object KaiPcClient {
         } catch (_: Exception) { emptyList() }
     }
 
+    /** Send a real email via the PC server's SMTP bridge. Returns true on success. */
+    suspend fun sendEmail(
+        ctx: Context,
+        to: String,
+        subject: String,
+        htmlBody: String,
+        textBody: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        val host = getHost(ctx)
+        val token = getToken(ctx)
+        if (host.isNullOrBlank() || token.isNullOrBlank()) {
+            return@withContext Result.failure(Exception("Kai PC not configured — open Settings → Kai PC → enter 192.168.x.x:8443 + token"))
+        }
+        val scheme = getScheme(ctx)
+        try {
+            val url = URL("$scheme://$host/send-email")
+            val conn = (if (scheme == "https") {
+                val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+                    override fun checkClientTrusted(a: Array<java.security.cert.X509Certificate>?, b: String?) {}
+                    override fun checkServerTrusted(a: Array<java.security.cert.X509Certificate>?, b: String?) {}
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                })
+                val sc = SSLContext.getInstance("SSL")
+                sc.init(null, trustAll, java.security.SecureRandom())
+                (url.openConnection() as HttpsURLConnection).apply {
+                    sslSocketFactory = sc.socketFactory
+                    hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                }
+            } else url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 10000
+                readTimeout = 15000
+            }
+
+            val body = JSONObject().apply {
+                put("to", to)
+                put("subject", subject)
+                put("html", htmlBody)
+                put("text", textBody)
+            }.toString()
+
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            val code = conn.responseCode
+            val resp = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.readText() ?: ""
+            if (code !in 200..299) return@withContext Result.failure(Exception("PC email failed $code: $resp"))
+            val json = try { JSONObject(resp) } catch (_: Exception) { null }
+            if (json?.optBoolean("ok") == true) Result.success(true)
+            else Result.failure(Exception(json?.optString("error", "unknown error") ?: resp))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Helper: encode file/image to base64 for transport */
     fun fileToBase64(ctx: Context, uri: Uri): Pair<String, String>? {
         return try {
