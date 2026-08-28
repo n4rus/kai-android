@@ -14,6 +14,7 @@ use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::{AddBos, LlamaModel, Special};
+use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
@@ -96,11 +97,18 @@ pub extern "C" fn kai_load_gguf_slot(slot: i32, path: *const c_char) -> i32 {
         }
     }
 
-    // Full load (weights are mmapped by llama.cpp — cheap to open, pages in on use)
+    // Full load — borrow GPU power (Vulkan) to keep UI responsive while typing
     let model = {
         let be_guard = match BACKEND.lock() { Ok(g) => g, Err(_) => return -1 };
         let backend = match be_guard.as_ref() { Some(b) => b, None => return -1 };
-        match LlamaModel::load_from_file(backend, p, &Default::default()) { Ok(m) => m, Err(_) => return -3 }
+        let gpu_params = LlamaModelParams::default().with_n_gpu_layers(99);
+        match LlamaModel::load_from_file(backend, p, &gpu_params) {
+            Ok(m) => m,
+            Err(_) => {
+                // Fallback to CPU if GPU (Vulkan) not available on this device
+                match LlamaModel::load_from_file(backend, p, &Default::default()) { Ok(m) => m, Err(_) => return -3 }
+            }
+        }
     };
 
     let slot_data = ModelSlot { model, path: p.to_string(), size };

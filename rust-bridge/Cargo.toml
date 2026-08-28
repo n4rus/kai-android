@@ -8,8 +8,8 @@ description = "Kai Fusion Rust bridge for Android — exposes kai_load_gguf, cal
 crate-type = ["cdylib"]
 
 [dependencies]
-# Real GGUF inference — actual llama.cpp, compiled for Android by cargo-ndk
-llama-cpp-2 = "0.1.154"
+# Real GGUF inference — actual llama.cpp with GPU (Vulkan) for Android — borrow GPU power to keep UI responsive
+llama-cpp-2 = { version = "0.1.154", features = ["vulkan"] }
 jni = "0.21"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

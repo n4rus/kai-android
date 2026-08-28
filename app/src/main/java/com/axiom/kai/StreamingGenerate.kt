@@ -23,17 +23,18 @@ class StreamingGenerator(private val ctx: android.content.Context) {
         }
 
         // Real inference is done — batch chunks to avoid recomposition storm on long answers (freeze fix)
+        // Borrow GPU power: larger batches + longer delay = fewer recompositions, UI stays responsive while typing
         val tokens = full.split(Regex("(?<=\\s)|(?=\\s)")).filter { it.isNotEmpty() }
-        val chunks = tokens.chunked(3).map { it.joinToString("") }
+        val chunks = tokens.chunked(8).map { it.joinToString("") }
         val baseDelayMs = when {
-            vfe > 3.5f -> 24L  // high VFE → slightly slower reveal, but batched
-            temp > 1.0f -> 20L
-            else -> 16L
+            vfe > 3.5f -> 32L  // high VFE → slightly slower reveal, but heavily batched
+            temp > 1.0f -> 28L
+            else -> 24L
         }
 
         for (chunk in chunks) {
             onToken(chunk)
-            delay(baseDelayMs + (Math.random() * 12).toLong())
+            delay(baseDelayMs + (Math.random() * 8).toLong())
         }
         onDone()
     }

@@ -89,6 +89,41 @@ private fun suggestionsFor(ctx: Context): List<String> = if (Lang.isPt(ctx)) lis
     "Summarize this topic for a beginner"
 )
 
+@Composable
+fun ChatInputBar(
+    input: String,
+    generating: Boolean,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onPickImage: () -> Unit,
+    onPickFile: () -> Unit
+) {
+    val ctx = LocalContext.current
+    @Suppress("UNUSED_VARIABLE") val langTick = Lang.version.value
+    Row(Modifier.fillMaxWidth().padding(8.dp).background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPickImage) {
+            Text("📷", style = MaterialTheme.typography.titleLarge)
+        }
+        IconButton(onClick = onPickFile) {
+            Text("📎", style = MaterialTheme.typography.titleLarge)
+        }
+        OutlinedTextField(
+            value = input,
+            onValueChange = onInputChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text(Lang.t(ctx,"Message Kai…","Mensagem para o Kai…")) },
+            singleLine = false,
+            maxLines = 4
+        )
+        Spacer(Modifier.width(8.dp))
+        Button(
+            onClick = onSend,
+            enabled = input.isNotBlank() && !generating,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        ) { Text(Lang.t(ctx,"Send","Enviar")) }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun KaiScreen(vm: ChatViewModel = viewModel()) {
@@ -103,7 +138,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var pickerExpanded by remember { mutableStateOf(false) }
     var historyExpanded by remember { mutableStateOf(false) }
     var configExpanded by remember { mutableStateOf(false) }
-    var showPhysics by remember { mutableStateOf(false) } // physics meters collapsed by default (beginner-friendly)
+    var showPhysics by remember { mutableStateOf(ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).getBoolean("show_physics", true)) } // VFE/tau active by default, persisted
     var showPcSettings by remember { mutableStateOf(false) }
     var showGeminiSettings by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
@@ -241,7 +276,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     Text(Lang.t(ctx, "VFE / Curvature — ${if (showPhysics) "ON" else "OFF"}", "VFE / Curvatura — ${if (showPhysics) "ATIVADO" else "DESATIVADO"}"),
                                         style = MaterialTheme.typography.bodyMedium)
                                 }},
-                                onClick = { showPhysics = !showPhysics; configExpanded = false }
+                                onClick = { val n = !showPhysics; showPhysics = n; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics", n).apply(); configExpanded = false }
                             )
                             DropdownMenuItem(
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) {
@@ -574,29 +609,15 @@ Column(Modifier.padding(12.dp)) {
                 item { Spacer(Modifier.height(8.dp)) }
             }
 
-            // Input row
-            Row(Modifier.fillMaxWidth().padding(8.dp).background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { imagePicker.launch("image/*") }) {
-                    Text("📷", style = MaterialTheme.typography.titleLarge)
-                }
-                IconButton(onClick = { filePicker.launch("*/*") }) {
-                    Text("📎", style = MaterialTheme.typography.titleLarge)
-                }
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text(Lang.t(ctx,"Message Kai…","Mensagem para o Kai…")) },
-                    singleLine = false,
-                    maxLines = 4
-                )
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = { vm.send(ctx, input); input = "" },
-                    enabled = input.isNotBlank() && !generating,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) { Text(Lang.t(ctx,"Send","Enviar")) }
-            }
+            // Input row — isolated to avoid recomposition freeze while typing during generation (borrowed GPU stays free for inference)
+            ChatInputBar(
+                input = input,
+                generating = generating,
+                onInputChange = { input = it },
+                onSend = { vm.send(ctx, input); input = "" },
+                onPickImage = { imagePicker.launch("image/*") },
+                onPickFile = { filePicker.launch("*/*") }
+            )
         }
     }
 
