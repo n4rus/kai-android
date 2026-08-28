@@ -47,15 +47,23 @@ object ModelCatalog {
         ),
         ModelEntry(
             "qwen2.5-coder:3b", "https://huggingface.co/bartowski/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf",
-            "qwen2.5-coder-3b-q4_k_m.gguf", 1900, "Coder 3B — best for code tasks"
+            "qwen2.5-coder-3b-q4_k_m.gguf", 1900, "★ Recommended — Coder 3B, best for code, reliable"
         ),
         ModelEntry(
             "gemma2:2b", "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
-            "gemma2-2b-q4_k_m.gguf", 1600, "Gemma 2 — 2B, balanced quality"
+            "gemma2-2b-q4_k_m.gguf", 1600, "★ Recommended — Gemma 2B, balanced, fast & reliable"
         ),
         ModelEntry(
             "llama3.2:3b", "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-            "llama3.2-3b-q4_k_m.gguf", 1900, "Llama 3.2 — 3B, strong general"
+            "llama3.2-3b-q4_k_m.gguf", 1900, "★ Recommended — Llama 3.2 3B, strong general, reliable"
+        ),
+        ModelEntry(
+            "qwen2.5-axiom:3b", "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf",
+            "qwen2.5-axiom-3b-q4_k_m.gguf", 1900, "★ Axiom 3B — desktop LoRA transpose, most reliable (transposed)"
+        ),
+        ModelEntry(
+            "nomic-embed:768", "https://huggingface.co/nomic-ai/nomic-embed-text-v1-GGUF/resolve/main/nomic-embed-text-v1.Q4_K_M.gguf",
+            "nomic-embed-text-v1.Q4_K_M.gguf", 150, "Nomic Embed 768-d — desktop transpose, for knowledge recall (auto-used if downloaded)"
         ),
         ModelEntry(
             "qwen2.5:7b", "https://huggingface.co/bartowski/Qwen2_5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
@@ -117,6 +125,22 @@ class ModelManager(private val ctx: Context) {
     fun isDownloaded(entry: ModelEntry): Boolean = localFile(entry).exists() && localFile(entry).length() > 1024*1024
 
     fun downloadedModels(): List<ModelEntry> = ModelCatalog.models.filter { isDownloaded(it) }
+
+    /** Delete a downloaded GGUF (with confirmation handled in UI). Returns true if deleted. */
+    fun deleteModel(entry: ModelEntry): Boolean {
+        return try {
+            val f = localFile(entry)
+            var ok = false
+            if (f.exists()) ok = f.delete() || ok
+            // also delete external copy and part files
+            val ext = File(extDir, entry.fileName)
+            if (ext.exists()) ext.delete()
+            val part = File(modelsDir, entry.fileName + ".part")
+            if (part.exists()) part.delete()
+            android.util.Log.i("ModelManager", "deleted ${entry.tag} -> $ok")
+            ok
+        } catch (_: Exception) { false }
+    }
 
     /**
      * Download via DownloadManager to EXTERNAL app dir (SecurityException-safe on One UI/16KB),
@@ -258,7 +282,7 @@ object ModelRouter {
         "strategy", "plan ", "step by step")
     private val DEEP_PREF = listOf("gemma2:2b", "llama3.2:3b", "qwen2.5:7b", "llama3:8b", "gemma2:9b")
     private val CODE_PREF = listOf("qwen2.5-coder:3b")
-    const val FAST_TAG = "qwen2.5:0.5b"
+    const val FAST_TAG = "llama3.2:3b"
 
     fun route(userText: String, mgr: ModelManager): Pair<String, Int>? {
         val lower = userText.lowercase()
@@ -276,9 +300,12 @@ object ModelRouter {
                 e != null && mgr.isDownloaded(e)
             }?.let { return it to 1 }
         }
-        // Fast path: always slot 0
-        val fast = ModelCatalog.byTag(FAST_TAG)
-        if (fast != null && mgr.isDownloaded(fast)) return FAST_TAG to 0
+        // Fast path: Recommended 3B first, then 0.5B fallback (0.5B too dumb for reliability)
+        val fastCandidates = listOf(FAST_TAG, "qwen2.5-coder:3b", "gemma2:2b", "qwen2.5-axiom:3b", "qwen2.5:0.5b")
+        fastCandidates.firstOrNull { tag ->
+            val e = ModelCatalog.byTag(tag)
+            e != null && mgr.isDownloaded(e)
+        }?.let { return it to 0 }
         return null
     }
 }

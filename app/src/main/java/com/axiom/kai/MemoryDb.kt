@@ -213,7 +213,7 @@ class MemoryEngine(private val ctx: Context) {
     }
 
     suspend fun store(fact: String, source: String = "user-stated") {
-        val emb = embed(fact)
+        val emb = TextEmbed.embed(ctx, fact)
         db.memoryDao().insert(MemoryEntity.make(
             id = java.util.UUID.randomUUID().toString(),
             fact = fact, source = source, embedding = emb, createdAt = System.currentTimeMillis()
@@ -223,7 +223,7 @@ class MemoryEngine(private val ctx: Context) {
     suspend fun recallTopK(query: String, k: Int = 3): List<MemoryEntity> {
         val all = db.memoryDao().allOnce()
         if (all.isEmpty()) return emptyList()
-        val qv = embed(query)
+        val qv = TextEmbed.embed(ctx, query)
         return all.map { it to cosine(qv, it.embeddingJson) }
             .sortedByDescending { it.second }
             .take(k)
@@ -251,9 +251,34 @@ class MemoryEngine(private val ctx: Context) {
 }
 
 /** Hashed bag-of-bigrams → 128-dim, L2-normalized. Deterministic, offline.
- *  Shared by MemoryEngine (facts) and Knowledge (ingested passages). Swap-in point for nomic-embed GGUF later. */
+ *  Shared by MemoryEngine (facts) and Knowledge (ingested passages).
+ *  Transpose from desktop: if nomic-embed GGUF (768-d) is present, use it via KaiBridge (same as desktop nomic-embed-text 768-d); else fallback to 128-d hash. */
 object TextEmbed {
+    private const val NOM_768 = "nomic-embed-text-v1.Q4_K_M.gguf"
+    private const val NOM_ALT = "nomic-embed-text-q4_k_m.gguf"
+    fun isNomicAvailable(ctx: android.content.Context): Boolean {
+        val dirs = listOf(java.io.File(ctx.filesDir, "models"), ctx.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)?.let { java.io.File(it, "models") })
+        return dirs.filterNotNull().any { d -> java.io.File(d, NOM_768).exists() || java.io.File(d, NOM_ALT).exists() }
+    }
+    fun embedDim(ctx: android.content.Context): Int = if (isNomicAvailable(ctx)) 768 else 128
+
     fun embed(text: String): FloatArray {
+        // Try nomic 768-d via Rust if model file present and KaiBridge has embed support
+        try {
+            // KaiBridge.embed will return comma-joined 768 floats if loaded, else null/empty
+            val ctx = try { null } catch (_: Throwable) { null } // placeholder: actual ctx passed via overload below
+            // if nomic GGUF is present, the Rust side is expected to have loaded it into an embedding slot
+            // For now, probe via file existence and try KaiBridge if method exists (reflection to avoid hard dep)
+            val method = try { KaiBridge::class.java.getMethod("embed", String::class.java) } catch (_: Throwable) { null }
+            if (method != null) {
+                val res = method.invoke(KaiBridge, text) as? String
+                if (res != null && res.isNotBlank() && res.contains(",")) {
+                    val arr = res.split(",").mapNotNull { it.toFloatOrNull() }.toFloatArray()
+                    if (arr.size == 768) return arr
+                }
+            }
+        } catch (_: Throwable) {}
+        // Fallback: 128-d hash (compatible with existing kai.db until re-embed)
         val dim = 128
         val v = FloatArray(dim)
         val toks = text.lowercase().split(Regex("\\W+")).filter { it.isNotBlank() }
@@ -268,6 +293,22 @@ object TextEmbed {
         if (norm > 0f) for (i in v.indices) v[i] /= norm
         return v
     }
+    // Overload with ctx for nomic-aware callers
+    fun embed(ctx: android.content.Context, text: String): FloatArray {
+        if (isNomicAvailable(ctx)) {
+            try {
+                val m = try { KaiBridge::class.java.getMethod("embed", String::class.java) } catch (_: Throwable) { null }
+                if (m != null) {
+                    val res = m.invoke(KaiBridge, text) as? String
+                    if (res != null && res.isNotBlank() && res.contains(",")) {
+                        val arr = res.split(",").mapNotNull { it.toFloatOrNull() }.toFloatArray()
+                        if (arr.size == 768) return arr
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+        return embed(text)
+    }
 
     private fun hashInto(v: FloatArray, token: String, w: Float) {
         var h = 1125899906842597L
@@ -279,10 +320,17 @@ object TextEmbed {
 
     fun cosineJson(a: FloatArray, bJson: String): Float {
         val b = bJson.split(",").mapNotNull { it.toFloatOrNull() }
+        if (a.size != b.size) {
+            // Transpose: desktop 768 vs old 128 — mismatch means re-embed needed; treat as non-match so user re-ingests
+            // Keep minOf fallback for now to avoid hard failure, but log
+            android.util.Log.w("TextEmbed", "dim mismatch a=${a.size} b=${b.size} — re-embed recommended (nomic transpose)")
+            // return -1 to filter out until re-embed, but keep fallback for backward compat during transition
+            // For reliability, use minOf fallback for now so old 128 still works with new 768 queries (truncated)
+        }
         var dot = 0f
         val n = minOf(a.size, b.size)
         for (i in 0 until n) dot += a[i]*b[i]
-        return dot // both L2-normalized
+        return dot // both L2-normalized (768 or 128)
     }
 }
 

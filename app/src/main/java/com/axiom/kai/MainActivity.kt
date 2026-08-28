@@ -147,6 +147,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var showCreateAccount by remember { mutableStateOf(false) }
     var showRecovery by remember { mutableStateOf(false) }
     var showExportChats by remember { mutableStateOf(false) }
+    var deleteModelTag by remember { mutableStateOf<String?>(null) }
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
@@ -232,9 +233,9 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             prefs.edit().putLong("v2_expiry", System.currentTimeMillis() + 36500L * 86400000L).apply()
         }
         if (vm.downloadState.value.values.none { it } && vm.downloadProgress.value.isEmpty()) {
-            ModelCatalog.models.firstOrNull { it.tag == "qwen2.5:0.5b" }?.let {
+            ModelCatalog.models.firstOrNull { it.tag == "llama3.2:3b" }?.let {
                 vm.downloadModel(ctx, it.tag) { _ ->
-                    Toast.makeText(ctx, "Downloading free ${it.tag} (${it.sizeMb}MB)…", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, "Downloading recommended ${it.tag} ★ (${it.sizeMb}MB)…", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -395,15 +396,30 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                  val downloaded = downloadState[e.tag] == true
                                  val pct = progress[e.tag]
                                  val isRemote = e.isRemote
+                                 val isRecommended = e.tag in listOf("qwen2.5-coder:3b", "gemma2:2b", "llama3.2:3b", "qwen2.5-axiom:3b")
                                  val label = when {
                                      isRemote -> "${e.tag} ✦ remote"
-                                     downloaded -> "${e.tag} ✓ local"
-                                     pct != null -> "${e.tag} ⬇ ${pct}%"
-                                     else -> "${e.tag} ⬇ ${e.sizeMb}MB"
+                                     downloaded -> "${e.tag} ✓ local" + if (isRecommended) " ★" else ""
+                                     pct != null -> "${e.tag} ⬇ ${pct}%" + if (isRecommended) " ★" else ""
+                                     else -> "${e.tag} ⬇ ${e.sizeMb}MB" + if (isRecommended) " ★ Recommended" else ""
                                  }
                                  DropdownMenuItem(
                                      text = { Text(label) },
+                                     trailingIcon = {
+                                         if (downloaded && !isRemote) {
+                                             Text("🗑", style = MaterialTheme.typography.bodySmall,
+                                                 modifier = Modifier.clickable {
+                                                     deleteModelTag = e.tag
+                                                     pickerExpanded = false
+                                                 }.padding(4.dp),
+                                                 color = MaterialTheme.colorScheme.error)
+                                         }
+                                     },
                                      onClick = {
+                                         if (deleteModelTag == e.tag) {
+                                             pickerExpanded = false
+                                             return@DropdownMenuItem
+                                         }
                                          vm.setModel(e.tag)
                                          if (isRemote) {
                                              if (e.tag.startsWith("gemini:")) {
@@ -1011,6 +1027,34 @@ Column(Modifier.padding(12.dp)) {
                 }) { Text(Lang.t(ctx, "Export", "Exportar")) }
             },
             dismissButton = { TextButton(onClick = { showExportChats = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
+        )
+    }
+    if (deleteModelTag != null) {
+        val tag = deleteModelTag!!
+        val entry = ModelCatalog.byTag(tag)
+        AlertDialog(
+            onDismissRequest = { deleteModelTag = null },
+            title = { Text(Lang.t(ctx, "Delete model?", "Deletar modelo?")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(Lang.t(ctx, "Delete $tag? This will remove the GGUF file and free storage. You can re-download it later.", "Deletar $tag? Isso vai remover o arquivo GGUF e liberar espaço. Você pode baixar novamente depois."))
+                    if (entry != null) Text("${entry.sizeMb}MB — ${entry.description}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(Lang.t(ctx, "This action cannot be undone without re-downloading.", "Esta ação não pode ser desfeita sem baixar novamente."), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    entry?.let {
+                        val ok = ModelManager(ctx).deleteModel(it)
+                        vm.refreshDownloadState(ctx)
+                        Toast.makeText(ctx, if (ok) Lang.t(ctx, "Deleted $tag", "Deletado $tag") else Lang.t(ctx, "Delete failed", "Falha ao deletar"), Toast.LENGTH_SHORT).show()
+                    }
+                    deleteModelTag = null
+                }) { Text(Lang.t(ctx, "Delete", "Deletar"), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteModelTag = null }) { Text(Lang.t(ctx, "Cancel", "Cancelar")) }
+            }
         )
     }
 }

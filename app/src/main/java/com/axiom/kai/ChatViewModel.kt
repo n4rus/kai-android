@@ -19,7 +19,7 @@ class ChatViewModel : ViewModel() {
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    private val _model = MutableStateFlow("qwen2.5:0.5b")
+    private val _model = MutableStateFlow("llama3.2:3b")
     val model: StateFlow<String> = _model.asStateFlow()
 
     private val _isGenerating = MutableStateFlow(false)

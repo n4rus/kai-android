@@ -71,7 +71,7 @@ object Knowledge {
                 sourceTitle = sourceTitle,
                 url = url,
                 text = c,
-                embeddingJson = TextEmbed.embed(c).joinToString(","),
+                embeddingJson = TextEmbed.embed(ctx, c).joinToString(","),
                 createdAt = System.currentTimeMillis()
             ))
             stored++
@@ -83,7 +83,7 @@ object Knowledge {
     suspend fun recall(ctx: Context, query: String, k: Int = 3): List<ChunkEntity> {
         val all = try { dao(ctx).allOnce() } catch (_: Throwable) { return emptyList() }
         if (all.isEmpty()) return emptyList()
-        val qv = TextEmbed.embed(query)
+        val qv = TextEmbed.embed(ctx, query)
         return all.map { it to TextEmbed.cosineJson(qv, it.embeddingJson) }
             .sortedByDescending { it.second }
             .take(k)

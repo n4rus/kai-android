@@ -11,7 +11,7 @@ data class ChatMessage(
     val vfe: Float? = null,
     val curvature: Float? = null,
     val temp: Float? = null,
-    val model: String = "qwen2.5:0.5b",
+    val model: String = "llama3.2:3b",
     val ts: Long = System.currentTimeMillis(),
     val latencyMs: Long? = null
 )
