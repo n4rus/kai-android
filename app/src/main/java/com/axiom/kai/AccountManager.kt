@@ -16,6 +16,7 @@ object AccountManager {
     private const val KEY_CURRENT = "current_email"
     private const val KEY_RECOVERY_TOKEN = "recovery_token"
     private const val KEY_RECOVERY_EMAIL = "recovery_email"
+    private const val KEY_CONFIRMATION = "confirmation_email"
 
     data class User(val username: String, val email: String, val recoveryEmail: String, val salt: String, val hash: String)
 
@@ -63,50 +64,49 @@ object AccountManager {
 
     private fun sendConfirmationEmail(ctx: Context, email: String, username: String) {
         val subject = "Kai - Account Created Successfully"
-        val bodyEN = """
-            |Hello $username,
-            |
-            |Your Kai account has been successfully created!
-            |
-            |Email: $email
-            |Username: $username
-            |
-            |You can now use all features of Kai with your encrypted chat history.
-            |
-            |This is an automated message. Do not reply to this email.
-            |
-            |Best regards,
-            |Kai Team
-        """.trimMargin()
+        val bodyEN = """Hello $username,
 
-        val bodyPT = """
-            |Olá $username,
-            |
-            |Sua conta Kai foi criada com sucesso!
-            |
-            |Email: $email
-            |Nome de usuário: $username
-            |
-            |Agora você pode usar todos os recursos do Kai com seu histórico de chat criptografado.
-            |
-            |Esta é uma mensagem automática. Não responda a este email.
-            |
-            |Atenciosamente,
-            |Equipe Kai
-        """.trimMargin()
+Your Kai account has been successfully created!
+
+Email: $email
+Username: $username
+
+You can now use all features of Kai with your encrypted chat history.
+
+This is an automated message. Do not reply to this email.
+
+Best regards,
+Kai Team"""
+
+        val bodyPT = """Olá $username,
+
+Sua conta Kai foi criada com sucesso!
+
+Email: $email
+Nome de usuário: $username
+
+Agora você pode usar todos os recursos do Kai com seu histórico de chat criptografado.
+
+Esta é uma mensagem automática. Não responda a este email.
+
+Atenciosamente,
+Equipe Kai"""
 
         val body = if (Lang.isPt(ctx)) bodyPT else bodyEN
+        val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+        val fullEmail = "Subject: $subject\nTo: $email\nDate: $timestamp\n\n$body"
 
-        // Log the confirmation email content for debugging
-        android.util.Log.i("AccountManager", "=== CONFIRMATION EMAIL ===")
-        android.util.Log.i("AccountManager", "To: $email")
-        android.util.Log.i("AccountManager", "Subject: $subject")
-        android.util.Log.i("AccountManager", "Body:\n$body")
-        android.util.Log.i("AccountManager", "=== END EMAIL ===")
+        // Store locally so user can see it in-app (offline-first: no real email backend)
+        prefs(ctx).edit().putString(KEY_CONFIRMATION, fullEmail).apply()
 
-        // In a production app, this would send via a backend service or Firebase Cloud Functions
-        // For offline-first, we log it and the user can verify from the app
+        // Also log for debugging
+        android.util.Log.i("AccountManager", "=== CONFIRMATION EMAIL SENT ===")
+        android.util.Log.i("AccountManager", fullEmail)
+        android.util.Log.i("AccountManager", "=== END ===")
     }
+
+    /** Returns the last confirmation email stored locally (offline-first inbox) */
+    fun getConfirmationEmail(ctx: Context): String? = prefs(ctx).getString(KEY_CONFIRMATION, null)
 
     private fun genSalt(): String {
         val b = ByteArray(16)

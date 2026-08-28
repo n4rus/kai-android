@@ -802,6 +802,7 @@ Column(Modifier.padding(12.dp)) {
             val uname = AccountManager.currentUsername(ctx) ?: ""
             val email = AccountManager.currentEmail ?: ""
             var showDeleteConfirm by remember { mutableStateOf(false) }
+            var showConfirmation by remember { mutableStateOf(false) }
             AlertDialog(
                 onDismissRequest = { showAccount = false },
                 title = { Text(Lang.t(ctx, "Account", "Conta")) },
@@ -824,14 +825,35 @@ Column(Modifier.padding(12.dp)) {
                     }) { Text(Lang.t(ctx, "Logout", "Sair")) }
                 },
                 dismissButton = {
-                    Row {
-                        TextButton(onClick = { showDeleteConfirm = true }) {
-                            Text(Lang.t(ctx, "Delete Account", "Excluir Conta"), color = MaterialTheme.colorScheme.error)
+                    Column {
+                        Row {
+                            TextButton(onClick = { showConfirmation = true }) {
+                                Text(Lang.t(ctx, "📧 View Email", "📧 Ver Email"), style = MaterialTheme.typography.labelSmall)
+                            }
+                            TextButton(onClick = { showDeleteConfirm = true }) {
+                                Text(Lang.t(ctx, "Delete", "Excluir"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                         TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
                     }
                 }
             )
+            // Confirmation email viewer
+            if (showConfirmation) {
+                val emailBody = AccountManager.getConfirmationEmail(ctx)
+                AlertDialog(
+                    onDismissRequest = { showConfirmation = false },
+                    title = { Text(Lang.t(ctx, "Confirmation Email", "Email de Confirmação")) },
+                    text = {
+                        if (emailBody != null) {
+                            Text(emailBody, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text(Lang.t(ctx, "No confirmation email found.", "Nenhum email de confirmação encontrado."), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { showConfirmation = false }) { Text("OK") } }
+                )
+            }
             // Delete account confirmation dialog
             if (showDeleteConfirm) {
                 AlertDialog(
