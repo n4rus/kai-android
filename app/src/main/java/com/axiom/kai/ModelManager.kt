@@ -286,6 +286,11 @@ object ModelRouter {
 
     fun route(userText: String, mgr: ModelManager): Pair<String, Int>? {
         val lower = userText.lowercase()
+        // VFE/tau are fast physics — never route to slow 7b/9b (would be 127s)
+        if (Regex("\\bvfe\\b").containsMatchIn(lower) || Regex("\\btau\\b").containsMatchIn(lower) || lower.contains("variational free energy") || lower.contains("energia livre")) {
+            val fastVfe = listOf(FAST_TAG, "qwen2.5-coder:3b", "gemma2:2b", "qwen2.5-axiom:3b", "qwen2.5:0.5b")
+            fastVfe.firstOrNull { tag -> val e = ModelCatalog.byTag(tag); e != null && mgr.isDownloaded(e) }?.let { return it to 0 }
+        }
         val isCode = CODE_MARKERS.any { lower.contains(it) }
         val isDeep = userText.length > 220 || DEEP_MARKERS.any { lower.contains(it) }
         if (isCode) {

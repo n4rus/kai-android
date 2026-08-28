@@ -419,6 +419,7 @@ object Tools {
                 "conta e criptografia (login em ⚙️ → 🔐 com senha forte 8+1 maiúscula+1 especial, histórico criptografado AES), " +
                 "exportar conversas (⚙️ → 💾 seleciona chats e salva um .txt por chat em Download), " +
                 "Kai PC remoto criptografado (⚙️ → 🖥️). " +
+                "VFE e tau são conceitos de física, não ferramentas — explique VFE=surpresa+KL e tau como T' = T×(1+α·curvatura) diretamente quando perguntado. " +
                 "Quando o usuário pedir algo no celular (abrir app, alarme, evento, bateria, ingerir página), " +
                 "diga o comando exato ou use-o. Workspace: ${ws.absolutePath}. [/Tools]\n\n"
         } else {
@@ -433,6 +434,7 @@ object Tools {
                 "account & encryption (login in ⚙️ → 🔐 with strong password 8+1 caps+1 special, history AES encrypted), " +
                 "export chats (⚙️ → 💾 select chats and save one .txt per chat to Download), " +
                 "remote Kai PC encrypted (⚙️ → 🖥️). " +
+                "VFE and tau are physics concepts, not tools — explain VFE=surprise+KL and tau as T' = T×(1+α·curvature) directly when asked. " +
                 "When the user asks you to do something on the phone (open app, set alarm, add event, check battery, ingest a page), " +
                 "tell them the exact command or use it. Workspace: ${ws.absolutePath}. [/Tools]\n\n"
         }

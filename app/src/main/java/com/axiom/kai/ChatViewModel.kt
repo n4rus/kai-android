@@ -496,6 +496,26 @@ class ChatViewModel : ViewModel() {
         val t0 = System.currentTimeMillis()
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
+                // Fast-path for VFE/tau — instant direct answer, no 127s LLM (bilingual physics)
+                val lowerVfeTau = userText.lowercase()
+                val isVfeTau = Regex("\\bvfe\\b").containsMatchIn(lowerVfeTau) || Regex("\\btau\\b").containsMatchIn(lowerVfeTau) || lowerVfeTau.contains("variational free energy") || lowerVfeTau.contains("energia livre")
+                if (isVfeTau) {
+                    val isPt = Lang.isPt(ctx)
+                    val answer = if (isPt) {
+                        "VFE (Energia Livre Variacional) = surpresa + KL — mede o quanto suas predições erram vs o mundo. Tau (τ) = temperatura: T' = T × (1 + α·curvatura). VFE alto → explorar (aumenta T), VFE baixo → consolidar. No Kai, VFE e curvatura modulam a temperatura a cada turno."
+                    } else {
+                        "VFE (Variational Free Energy) = surprise + KL — how much your predictions mismatch the world. Tau (τ) = temperature: T' = T × (1 + α·curvature). High VFE → explore (raise T), low VFE → consolidate. In Kai, VFE and curvature modulate temperature each turn."
+                    }
+                    val elapsedVfe = System.currentTimeMillis() - t0
+                    val kaiIdVfe = java.util.UUID.randomUUID().toString()
+                    val kaiMsgVfe = ChatMessage(id = kaiIdVfe, role = Role.KAI, text = answer, model = curModel + " · direct", vfe = 1.5f, curvature = 0.3f, temp = 0.85f, latencyMs = elapsedVfe)
+                    _messages.value = _messages.value + kaiMsgVfe
+                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        db.messageDao().insert(MessageEntity(id = kaiIdVfe, chatId = currentChatId, role = "KAI", text = encText(answer), vfe = 1.5f, curvature = 0.3f, temp = 0.85f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsedVfe))
+                    }
+                    _isGenerating.value = false
+                    return@launch
+                }
                 // Gemini remote models — after Google login, free
                 if (curModel.startsWith("gemini:")) {
                     if (!GeminiClient.isLoggedIn(ctx)) {
