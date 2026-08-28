@@ -7,8 +7,8 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Kai-Android"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:label="Kai"
+        android:theme="@style/Theme.Kai.DarkLaunch">
         <activity
             android:name=".MainActivity"
             android:exported="true">
