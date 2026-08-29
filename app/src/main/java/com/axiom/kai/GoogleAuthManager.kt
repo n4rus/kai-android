@@ -8,6 +8,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 /**
  * Google Sign-In for Kai account login and Gemini API access.
@@ -19,9 +22,17 @@ import com.google.android.gms.common.api.ApiException
  */
 object GoogleAuthManager {
     private fun client(ctx: Context): GoogleSignInClient {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .build()
+        // Request ID token for Firebase Auth if google-services.json is configured
+        try {
+            val resId = ctx.resources.getIdentifier("default_web_client_id", "string", ctx.packageName)
+            if (resId != 0) {
+                val webId = ctx.getString(resId)
+                if (webId.isNotBlank() && !webId.contains("placeholder")) builder.requestIdToken(webId)
+            }
+        } catch (_: Exception) {}
+        val gso = builder.build()
         return GoogleSignIn.getClient(ctx, gso)
     }
 
@@ -45,6 +56,14 @@ object GoogleAuthManager {
                 val displayName = acct.displayName ?: email.substringBefore("@")
                 // Create or update local Kai account with this Google email
                 linkGoogleAccount(ctx, email, displayName)
+                // Firebase Google credential if available
+                acct.idToken?.let { token ->
+                    if (FirebaseHelper.isConfigured(ctx)) {
+                        GlobalScope.launch(Dispatchers.IO) {
+                            FirebaseHelper.signInWithGoogle(token)
+                        }
+                    }
+                }
                 GeminiClient.setLoggedIn(ctx, true)
                 onResult(true, email)
             } else {

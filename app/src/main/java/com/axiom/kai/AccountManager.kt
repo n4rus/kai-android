@@ -103,7 +103,7 @@ Equipe Kai"""
         val fullEmail = "Subject: $subject\nTo: $email\nDate: $timestamp\n\n$textBody"
         prefs(ctx).edit().putString(KEY_CONFIRMATION, fullEmail).apply()
 
-        // Try real SMTP via Kai PC server if configured
+        // Try real SMTP via Kai PC server if configured (dev bridge); Firebase handled in createAccount
         if (KaiPcClient.isConfigured(ctx)) {
             GlobalScope.launch(Dispatchers.IO) {
                 val result = KaiPcClient.sendEmail(ctx, email, subject, htmlBody, textBody)
@@ -114,7 +114,7 @@ Equipe Kai"""
                 }
             }
         } else {
-            android.util.Log.i("AccountManager", "Email queued (Kai PC not configured — local copy in 'View Email' dialog)")
+            android.util.Log.i("AccountManager", "Email queued (local copy in 'View Email' dialog)")
         }
 
         android.util.Log.i("AccountManager", "=== CONFIRMATION EMAIL ===")
@@ -159,9 +159,21 @@ Equipe Kai"""
         // derive and store encryption key for this session
         deriveKey(password, salt)?.let { encKey = it }
         currentEmail = e
-        // Simulate sending confirmation email
+        // Local inbox + Kai PC SMTP
         sendConfirmationEmail(ctx, e, username)
-        return true to Lang.t(ctx, "Account created - confirmation email sent", "Conta criada - email de confirmação enviado")
+        // Firebase Auth (Play Store production) — real verification email
+        if (FirebaseHelper.isConfigured(ctx)) {
+            GlobalScope.launch(Dispatchers.IO) {
+                val res = FirebaseHelper.createAccountAndSendVerification(e, password)
+                if (res.isSuccess) android.util.Log.i("AccountManager", "✓ Firebase verification sent to $e")
+                else android.util.Log.w("AccountManager", "Firebase create: ${res.exceptionOrNull()?.message} (local account still works offline)")
+            }
+        }
+        val msg = if (FirebaseHelper.isConfigured(ctx))
+            Lang.t(ctx, "Account created — check email for verification link", "Conta criada — verifique o email")
+        else
+            Lang.t(ctx, "Account created - confirmation email sent", "Conta criada - email de confirmação enviado")
+        return true to msg
     }
 
     var currentEmail: String? = null
@@ -205,6 +217,10 @@ Equipe Kai"""
         val updated = users.filter { it.email != cur }
         saveUsers(ctx, updated)
         logout(ctx)
+        // Firebase delete too
+        if (FirebaseHelper.isConfigured(ctx)) {
+            GlobalScope.launch(Dispatchers.IO) { FirebaseHelper.deleteCurrentUser() }
+        }
         return true
     }
 
@@ -222,6 +238,14 @@ Equipe Kai"""
         val textBody = "Hello ${u.username},\n\nWe received a request to reset your Kai password.\n\nYour recovery code is: $token\n\nOr click the link: $link\n\nIf you didn't request this, ignore this email.\n\nKai Team"
         val htmlBody = textBody.replace("\n", "<br>")
 
+        if (FirebaseHelper.isConfigured(ctx)) {
+            GlobalScope.launch(Dispatchers.IO) {
+                val res = FirebaseHelper.sendPasswordReset(u.email)
+                if (res.isSuccess) android.util.Log.i("AccountManager", "✓ Firebase reset sent to ${u.email}")
+                else android.util.Log.w("AccountManager", "Firebase reset: ${res.exceptionOrNull()?.message}")
+            }
+            return true to Lang.t(ctx, "Recovery email sent to $re — check inbox", "Email de recuperação enviado para $re — verifique a caixa") + "\n$link"
+        }
         if (KaiPcClient.isConfigured(ctx)) {
             GlobalScope.launch(Dispatchers.IO) {
                 val result = KaiPcClient.sendEmail(ctx, u.email, subject, htmlBody, textBody)
