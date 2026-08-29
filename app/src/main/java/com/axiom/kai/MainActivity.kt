@@ -498,9 +498,9 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 }
             }
 
-            // Physics meters — collapsed by default (beginner-friendly), expandable for devs via menu ⚡
+            // Physics meters — collapsed by default, tap to hide
             if (showPhysics) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).clickable { showPhysics = false; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics", false).apply() }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Card(Modifier.weight(1f)) {
                         Column(Modifier.padding(8.dp)) {
                             Text("VFE", style = MaterialTheme.typography.labelMedium)
@@ -602,7 +602,8 @@ Column(Modifier.padding(12.dp)) {
                                         add("T %.2f".format(m.temp ?: 0f))
                                     }
                                 }.joinToString(" · ")
-                                Text(base, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(base, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.clickable { showPhysics = !showPhysics; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics", showPhysics).apply() })
                             }
                         }
                         }
