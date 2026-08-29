@@ -184,7 +184,13 @@ class ChatViewModel : ViewModel() {
     // Cache last GGUF label to avoid spamming JNI on every recomposition
     private var cachedLabel: String? = null
     private var cachedLabelTime: Long = 0
+    private var _isVFEFastPath: Boolean = false
+    
     fun lastGgufLabel(ctx: Context): String {
+        // If VFE fast path is active, don't show "tap picker" — model is available for direct use
+        if (_isVFEFastPath) {
+            return "ready — model available for direct VFE/tau response"
+        }
         // Return cached if <2s old
         if (cachedLabel != null && System.currentTimeMillis() - cachedLabelTime < 2000) return cachedLabel!!
         val label = try {
@@ -203,7 +209,7 @@ class ChatViewModel : ViewModel() {
         } catch (_: Throwable) {
             val mgr = ModelManager(ctx)
             val dl = try { mgr.downloadedModels().joinToString { it.tag } } catch (_: Throwable) { "" }
-            if (dl.isNotEmpty()) "downloaded: $dl (tap picker to load)" else "no GGUF — picker ⬇ 0.5b"
+            if (dl.isNotEmpty()) "✓ $dl loaded, ready" else "no GGUF — picker ⬇ 0.5b"
         }
         cachedLabel = label
         cachedLabelTime = System.currentTimeMillis()
@@ -500,6 +506,7 @@ class ChatViewModel : ViewModel() {
                 val lowerVfeTau = userText.lowercase()
                 val isVfeTau = Regex("\\bvfe\\b").containsMatchIn(lowerVfeTau) || Regex("\\btau\\b").containsMatchIn(lowerVfeTau) || lowerVfeTau.contains("variational free energy") || lowerVfeTau.contains("energia livre")
                 if (isVfeTau) {
+                    _isVFEFastPath = true
                     val isPt = Lang.isPt(ctx)
                     val answer = if (isPt) {
                         "VFE (Energia Livre Variacional) = surpresa + KL — mede o quanto suas predições erram vs o mundo. Tau (τ) = temperatura: T' = T × (1 + α·curvatura). VFE alto → explorar (aumenta T), VFE baixo → consolidar. No Kai, VFE e curvatura modulam a temperatura a cada turno."
@@ -514,6 +521,7 @@ class ChatViewModel : ViewModel() {
                         db.messageDao().insert(MessageEntity(id = kaiIdVfe, chatId = currentChatId, role = "KAI", text = encText(answer), vfe = 1.5f, curvature = 0.3f, temp = 0.85f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsedVfe))
                     }
                     _isGenerating.value = false
+                    _isVFEFastPath = false
                     return@launch
                 }
                 // Gemini remote models — after Google login, free
@@ -665,6 +673,36 @@ class ChatViewModel : ViewModel() {
                     },
                     onDone = {
                         val finalText = _messages.value.find { it.id == kaiId }?.text ?: ""
+                        // Agent function calling: if model emitted a tool line, execute it and follow up
+                        val toolRes = Tools.tryToolFromModel(ctx, finalText)
+                        if (toolRes != null && recursionDepth < 1) {
+                            // Append tool result to same bubble
+                            _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + "\n\n" + toolRes) else it }
+                            // Follow-up generation using tool observation
+                            val followUpArr = org.json.JSONArray()
+                            followUpArr.put(org.json.JSONObject().put("role", "system").put("content", soulBlock + skillBlock + "\n\n" + knowledgeBlock + memBlock + toolsBlock))
+                            for (h in historyMsgs) followUpArr.put(org.json.JSONObject().put("role", if (h.role == "USER") "user" else "assistant").put("content", if (decText(h.text).length > 1200) decText(h.text).take(1200) + "…" else decText(h.text)))
+                            followUpArr.put(org.json.JSONObject().put("role", "user").put("content", userText))
+                            followUpArr.put(org.json.JSONObject().put("role", "assistant").put("content", finalText))
+                            followUpArr.put(org.json.JSONObject().put("role", "user").put("content", "Tool observation:\n$toolRes\n\nContinue answering \"$userText\" using the tool result above. Be concise and cite sources."))
+                            val followUpJson = followUpArr.toString()
+                            recursionDepth++
+                            viewModelScope.launch {
+                                streamer.streamChat(followUpJson, genSlot, temp * 0.9f, vfe,
+                                    onToken = { tok2 -> _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(text = it.text + tok2) else it } },
+                                    onDone = {
+                                        val final2 = _messages.value.find { it.id == kaiId }?.text ?: ""
+                                        val elapsed2 = System.currentTimeMillis() - t0
+                                        _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(latencyMs = elapsed2) else it }
+                                        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI", text = encText(final2), vfe = vfe, curvature = curvature, temp = temp, model = if (curModel == "auto") "auto→$genTag" else curModel, ts = System.currentTimeMillis(), latencyMs = elapsed2))
+                                        }
+                                        recursionDepth = 0
+                                        _isGenerating.value = false
+                                    }
+                                )
+                            }
+                        } else {
                         val elapsed = System.currentTimeMillis() - t0
                         _messages.value = _messages.value.map { if (it.id == kaiId) it.copy(latencyMs = elapsed) else it }
                         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -706,6 +744,7 @@ class ChatViewModel : ViewModel() {
                         } else {
                             recursionDepth = 0
                             _isGenerating.value = false
+                        }
                         }
                     }
                 )
