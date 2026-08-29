@@ -14,7 +14,8 @@ data class ModelEntry(
     val fileName: String,
     val sizeMb: Int,
     val description: String,
-    val isRemote: Boolean = false // true → not a GGUF, is an encrypted live PC endpoint
+    val isRemote: Boolean = false, // true → not a GGUF, is an encrypted live PC endpoint
+    val requiresPro: Boolean = false // true → Pro early access, free tier gets it later
 )
 
 object ModelCatalog {
@@ -59,11 +60,11 @@ object ModelCatalog {
         ),
         ModelEntry(
             "qwen2.5-axiom:3b", "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf",
-            "qwen2.5-axiom-3b-q4_k_m.gguf", 1900, "★ Axiom 3B — desktop LoRA transpose, most reliable (transposed)"
+            "qwen2.5-axiom-3b-q4_k_m.gguf", 1900, "★ Axiom 3B — desktop LoRA transpose, most reliable (Pro early access)", requiresPro = true
         ),
         ModelEntry(
             "nomic-embed:768", "https://huggingface.co/nomic-ai/nomic-embed-text-v1-GGUF/resolve/main/nomic-embed-text-v1.Q4_K_M.gguf",
-            "nomic-embed-text-v1.Q4_K_M.gguf", 150, "Nomic Embed 768-d — desktop transpose, for knowledge recall (auto-used if downloaded)"
+            "nomic-embed-text-v1.Q4_K_M.gguf", 150, "Nomic Embed 768-d — desktop transpose, for knowledge recall (Pro early access)", requiresPro = true
         ),
         ModelEntry(
             "qwen2.5:7b", "https://huggingface.co/bartowski/Qwen2_5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
