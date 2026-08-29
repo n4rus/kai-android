@@ -1,0 +1,27 @@
+{
+  "comment": "PLACEHOLDER — replace with real file from Firebase Console after creating project",
+  "instructions": [
+    "1. Go to https://console.firebase.google.com → Add project → kai-android",
+    "2. Add Android app: package com.axiom.kai, nickname Kai, SHA1 EE:A9:BE:6F:EC:31:9E:F3:92:70:93:3B:E0:66:88:8D:9F:0E:3A:B6 SHA256 3E:16:FA:A1:65:62:5F:AC:80:38:BD:9E:7F:9E:DB:53:14:B9:5E:A5:2A:08:41:7C:81:A8:88:AC:F9:8B:35:56",
+    "3. Download google-services.json and replace this file",
+    "4. Enable Authentication → Email/Password and Google provider",
+    "5. No backend needed — Firebase sends verification email automatically"
+  ],
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "kai-android-placeholder",
+    "storage_bucket": "kai-android-placeholder.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": { "package_name": "com.axiom.kai" }
+      },
+      "oauth_client": [],
+      "api_key": [{ "current_key": "PLACEHOLDER_REPLACE_ME" }],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}
