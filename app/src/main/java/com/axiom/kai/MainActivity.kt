@@ -29,6 +29,12 @@ import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
+import kotlinx.coroutines.delay
 import com.axiom.kai.ui.theme.KaiTheme
 import com.axiom.kai.ui.theme.getThemeMode
 import com.axiom.kai.ui.theme.setThemeMode
@@ -90,6 +96,31 @@ private fun suggestionsFor(ctx: Context): List<String> = if (Lang.isPt(ctx)) lis
 )
 
 @Composable
+fun AdStripe() {
+    val ctx = LocalContext.current
+    val isPro = remember { BillingManager(ctx).hasPro() }
+    if (isPro) return
+    var visible by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        try { MobileAds.initialize(ctx) } catch (_: Throwable) {}
+        delay(5000)
+        visible = false
+    }
+    if (!visible) return
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 8.dp),
+        factory = { c ->
+            AdView(c).apply {
+                setAdSize(AdSize.BANNER)
+                // Test banner — replace with real ca-app-pub-.../6300978111 before release
+                adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                loadAd(AdRequest.Builder().build())
+            }
+        }
+    )
+}
+
+@Composable
 fun ChatInputBar(
     input: String,
     generating: Boolean,
@@ -139,6 +170,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var historyExpanded by remember { mutableStateOf(false) }
     var configExpanded by remember { mutableStateOf(false) }
     var showPhysics by remember { mutableStateOf(ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).getBoolean("show_physics", true)) } // VFE/tau active by default, persisted
+    var vfeCollapsed by remember { mutableStateOf(false) } // tap to hide — only hides, does not turn off
     var showPcSettings by remember { mutableStateOf(false) }
     var showGeminiSettings by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
@@ -440,30 +472,34 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                                      showGeminiSettings = true
                                                  } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
                                              }
-                                         } else if (!downloaded && pct == null) {
-                                             vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
-                                         } else if (downloaded) {
-                                             Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
-                                             vm.tryLoadCurrentModel(ctx) { r ->
-                                                 Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
-                                             }
+                                          } else if (!downloaded && pct == null) {
+                                              if (e.requiresPro && !BillingManager(ctx).hasPro()) {
+                                                  Toast.makeText(ctx, "🔒 ${e.tag} — Pro early access ($4.99 one-time). Tap Get Kai Pro below.", Toast.LENGTH_LONG).show()
+                                              } else {
+                                                  vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
+                                              }
+                                          } else if (downloaded) {
+                                              Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
+                                              vm.tryLoadCurrentModel(ctx) { r ->
+                                                  Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
+                                              }
+                                          }
+                                          pickerExpanded = false
+                                      }
+                                  )
+                              }
+                             DropdownMenuItem(
+                                 text = { Text(if (BillingManager(ctx).hasPro()) "Kai Pro ✓ — Ads removed + early releases" else "Get Kai Pro — $4.99 one-time (remove ads + early access)") },
+                                 onClick = {
+                                     try {
+                                         BillingManager(ctx).connect {
+                                             val activity = ctx as? android.app.Activity
+                                             if (activity != null) BillingManager(ctx).launchPurchase(activity, BillingSkus.PRO)
                                          }
-                                         pickerExpanded = false
-                                     }
-                                 )
-                             }
-                            DropdownMenuItem(
-                                text = { Text(if (vm.billingHasV2(ctx)) "Kai Pro — ${vm.billingDaysLeft(ctx)}d left ✓" else "Get Kai Pro (v2) — $4.99") },
-                                onClick = {
-                                    try {
-                                        BillingManager(ctx).connect {
-                                            val activity = ctx as? android.app.Activity
-                                            if (activity != null) BillingManager(ctx).launchPurchase(activity, BillingSkus.V2_30D)
-                                        }
-                                    } catch (_: Throwable) { Toast.makeText(ctx, "Kai Pro $4.99 — 30 days, no subscription", Toast.LENGTH_SHORT).show() }
-                                    pickerExpanded = false
-                                }
-                            )
+                                     } catch (_: Throwable) { Toast.makeText(ctx, "Kai Pro $4.99 — one-time, no subscription", Toast.LENGTH_SHORT).show() }
+                                     pickerExpanded = false
+                                 }
+                             )
                             // Tier 2: memory count
                             DropdownMenuItem(
                                 text = { Text("Memory: ${vm.memoryCount.collectAsState().value} facts (say \"remember X\")") },
@@ -498,9 +534,16 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 }
             }
 
-            // Physics meters — collapsed by default, tap to hide
+            // Physics meters — tap to hide (only hides, does not turn off). Show button when hidden.
             if (showPhysics) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).clickable { showPhysics = false; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics", false).apply() }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (vfeCollapsed) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.Center) {
+                        TextButton(onClick = { vfeCollapsed = false }) {
+                            Text(Lang.t(ctx,"👁 Show VFE / Curvature","👁 Mostrar VFE / Curvatura"), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                } else {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).clickable { vfeCollapsed = true }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Card(Modifier.weight(1f)) {
                         Column(Modifier.padding(8.dp)) {
                             Text("VFE", style = MaterialTheme.typography.labelMedium)
@@ -522,12 +565,16 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                         }
                     }
                 }
+                }
             } else if ((lastKai?.vfe ?: 0f) > 3f) {
                 // Beginner hint only when something interesting happens
                 Text(Lang.t(ctx,"⚡ Kai is exploring a novel idea…","⚡ Kai está explorando uma ideia nova…"), style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     color = MaterialTheme.colorScheme.primary)
             }
+
+            // Ad stripe — free tier only, 5s auto-hide, between tabs/VFE and chat
+            AdStripe()
 
             // Chat list — opens at the LATEST message (no scrolling back through history)
             val listState = rememberLazyListState()
@@ -555,7 +602,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                         Card(
                             shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-                                .clickable { vm.send(ctx, s) },
+                                .clickable { if (generating) return@clickable; vm.send(ctx, s) },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Text(s, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium)
@@ -603,7 +650,7 @@ Column(Modifier.padding(12.dp)) {
                                     }
                                 }.joinToString(" · ")
                                 Text(base, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.clickable { showPhysics = !showPhysics; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics", showPhysics).apply() })
+                                    modifier = Modifier.clickable { vfeCollapsed = !vfeCollapsed })
                             }
                         }
                         }

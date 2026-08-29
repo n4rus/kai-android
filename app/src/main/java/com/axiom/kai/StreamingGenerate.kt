@@ -22,14 +22,14 @@ class StreamingGenerator(private val ctx: android.content.Context) {
             "[Kai] generation failed (JNI) — check model loaded"
         }
 
-        // Real inference is done — batch chunks to avoid recomposition storm on long answers (freeze fix)
-        // Borrow GPU power: larger batches + longer delay = fewer recompositions, UI stays responsive while typing
+        // Real inference is done — batch chunks to avoid recomposition storm (freeze fix)
+        // 16 tokens per chunk = half the recompositions vs 8, 16ms keeps UI responsive while thinking
         val tokens = full.split(Regex("(?<=\\s)|(?=\\s)")).filter { it.isNotEmpty() }
-        val chunks = tokens.chunked(8).map { it.joinToString("") }
+        val chunks = tokens.chunked(16).map { it.joinToString("") }
         val baseDelayMs = when {
-            vfe > 3.5f -> 32L  // high VFE → slightly slower reveal, but heavily batched
-            temp > 1.0f -> 28L
-            else -> 24L
+            vfe > 3.5f -> 24L
+            temp > 1.0f -> 20L
+            else -> 16L
         }
 
         for (chunk in chunks) {

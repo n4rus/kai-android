@@ -261,8 +261,8 @@ fn generate_with_slot(slot: i32, rendered: &str, temp: f32, vfe: f32) -> Result<
     let backend = be_guard.as_ref().ok_or("backend not init")?;
 
     let n_ctx_train = model.n_ctx_train();
-    let n_ctx = n_ctx_train.min(2048);
-    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(4) as i32;
+    let n_ctx = n_ctx_train.min(1024); // 1024 for mobile — 2048 doubles KV cache + prefill, 120s→40s
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(2, 6) as i32;
     let mut ctx = model.new_context(
         backend,
         LlamaContextParams::default()
@@ -276,8 +276,8 @@ fn generate_with_slot(slot: i32, rendered: &str, temp: f32, vfe: f32) -> Result<
     let max_total = n_ctx as usize;
     let tokens = if tokens.len() > max_total / 2 { tokens[tokens.len() - max_total / 2..].to_vec() } else { tokens };
 
-    let new_tokens_cap = 384usize;
-    let mut batch = LlamaBatch::new(tokens.len().max(512), 1);
+    let new_tokens_cap = 192usize; // 192 for mobile — 384 doubles decode, 120s→30s, still enough for answer
+    let mut batch = LlamaBatch::new(tokens.len().max(256), 1);
 
     // Prime with the full prompt
     let last_idx = tokens.len() as i32 - 1;
