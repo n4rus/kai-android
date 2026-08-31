@@ -27,6 +27,9 @@ class ChatViewModel : ViewModel() {
 
     private var recursionDepth = 0
     private var lastSessionLog = 0L
+    private var bgCtx: Context? = null
+    private fun startBg(ctx: Context, text: String) { bgCtx = ctx.applicationContext; try { KaiForegroundService.start(ctx, text) } catch (_: Throwable) {} }
+    private fun stopBg() { bgCtx?.let { try { KaiForegroundService.stop(it) } catch (_: Throwable) {} }; bgCtx = null }
 
     // GGUF download state
     private val _downloadState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
@@ -388,6 +391,7 @@ class ChatViewModel : ViewModel() {
         }
 
         _isGenerating.value = true
+        startBg(ctx, userText)
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             // Tier 2: extract facts ("remember X", "my name is Y") — ALL DB/memory on IO thread
@@ -421,7 +425,7 @@ class ChatViewModel : ViewModel() {
                             db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
                                 text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "kai-pc:live", ts = System.currentTimeMillis()))
                         }
-                        _isGenerating.value = false
+                        _isGenerating.value = false; stopBg()
                         return@launch
                     }
                     // Create placeholder for PC reply (will stream into it when PC responds)
@@ -436,7 +440,7 @@ class ChatViewModel : ViewModel() {
                         db.messageDao().insert(MessageEntity(id = pcId, chatId = currentChatId, role = "KAI",
                             text = "🖥️ Kai PC live:\n$reply", vfe = 2.5f, curvature = 0.5f, temp = 0.9f, model = "kai-pc:live", ts = System.currentTimeMillis()))
                     }
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                     return@launch
                 }
 
@@ -464,7 +468,7 @@ class ChatViewModel : ViewModel() {
                         db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
                             text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
                     }
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                 } else if ((lowerNl.contains("import") && (lowerNl.contains("phone") || lowerNl.contains("download") || lowerNl.contains("history") || lowerNl.contains("opencode"))) ||
                     lowerNl.contains("sync from download") || lowerNl.contains("load from download")) {
                     val count = scanAndImportDownloads(ctx)
@@ -479,7 +483,7 @@ class ChatViewModel : ViewModel() {
                         db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
                             text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
                     }
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                 } else {
                     val toolResult = Tools.tryTool(ctx, userText)
                     if (toolResult != null) {
@@ -489,14 +493,14 @@ class ChatViewModel : ViewModel() {
                             db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
                                 text = toolResult, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "tool", ts = System.currentTimeMillis()))
                         }
-                        _isGenerating.value = false
+                        _isGenerating.value = false; stopBg()
                     } else {
                         continueSendAfterTools(ctx, db, memEngine, userText, curModel)
                     }
                 }
             } catch (t: Throwable) {
                 android.util.Log.e("ChatViewModel", "send pipeline failed: $t")
-                _isGenerating.value = false
+                _isGenerating.value = false; stopBg()
             }
         }
     }
@@ -523,7 +527,7 @@ class ChatViewModel : ViewModel() {
                     viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         db.messageDao().insert(MessageEntity(id = kaiIdVfe, chatId = currentChatId, role = "KAI", text = encText(answer), vfe = 1.5f, curvature = 0.3f, temp = 0.85f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsedVfe))
                     }
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                     _isVFEFastPath = false
                     return@launch
                 }
@@ -534,7 +538,7 @@ class ChatViewModel : ViewModel() {
                         val m = ChatMessage(role = Role.KAI, text = msg, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
                         _messages.value = _messages.value + m
                         db.messageDao().insert(MessageEntity(id = m.id, chatId = currentChatId, role = "KAI", text = encText(msg), vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
-                        _isGenerating.value = false
+                        _isGenerating.value = false; stopBg()
                         return@launch
                     }
                     if (!GeminiClient.hasApiKey(ctx)) {
@@ -542,7 +546,7 @@ class ChatViewModel : ViewModel() {
                         val m = ChatMessage(role = Role.KAI, text = msg, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
                         _messages.value = _messages.value + m
                         db.messageDao().insert(MessageEntity(id = m.id, chatId = currentChatId, role = "KAI", text = encText(msg), vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))
-                        _isGenerating.value = false
+                        _isGenerating.value = false; stopBg()
                         return@launch
                     }
                     val soulBlockTmp = Soul.build(ctx, memEngine, curModel)
@@ -560,7 +564,7 @@ class ChatViewModel : ViewModel() {
                     val kaiMsg = ChatMessage(id = kaiId, role = Role.KAI, text = out, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f, latencyMs = elapsed)
                     _messages.value = _messages.value + kaiMsg
                     db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI", text = encText(out), vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsed))
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                     return@launch
                 }
                 // Other remote LLMs — DeepSeek / GPT / Qwen / Claude (API key gated, via RemoteLLMClient)
@@ -579,7 +583,7 @@ class ChatViewModel : ViewModel() {
                     val kaiMsg2 = ChatMessage(id = kaiId2, role = Role.KAI, text = out2, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f, latencyMs = elapsed2)
                     _messages.value = _messages.value + kaiMsg2
                     db.messageDao().insert(MessageEntity(id = kaiId2, chatId = currentChatId, role = "KAI", text = encText(out2), vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis(), latencyMs = elapsed2))
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                     return@launch
                 }
 
@@ -663,7 +667,7 @@ class ChatViewModel : ViewModel() {
                             SessionLog.append(ctx, title, historyMsgs.size / 2 + 1, userText)
                         }
                     }
-                    _isGenerating.value = false
+                    _isGenerating.value = false; stopBg()
                     return@launch
                 }
 
@@ -701,7 +705,7 @@ class ChatViewModel : ViewModel() {
                                             db.messageDao().insert(MessageEntity(id = kaiId, chatId = currentChatId, role = "KAI", text = encText(final2), vfe = vfe, curvature = curvature, temp = temp, model = if (curModel == "auto") "auto→$genTag" else curModel, ts = System.currentTimeMillis(), latencyMs = elapsed2))
                                         }
                                         recursionDepth = 0
-                                        _isGenerating.value = false
+                                        _isGenerating.value = false; stopBg()
                                     }
                                 )
                             }
@@ -740,20 +744,20 @@ class ChatViewModel : ViewModel() {
                                                 text = encText(ghostText), vfe = selfVfe, curvature = curvature*0.8f, temp = selfTemp,
                                                 model = curModel, ts = System.currentTimeMillis()))
                                         }
-                                        _isGenerating.value = false
+                                        _isGenerating.value = false; stopBg()
                                     }
                                 )
                             }
                         } else {
                             recursionDepth = 0
-                            _isGenerating.value = false
+                            _isGenerating.value = false; stopBg()
                         }
                         }
                     }
                 )
             } catch (t: Throwable) {
                 android.util.Log.e("ChatViewModel", "send pipeline failed: $t")
-                _isGenerating.value = false
+                _isGenerating.value = false; stopBg()
             }
         }
     }
@@ -786,7 +790,7 @@ class ChatViewModel : ViewModel() {
             } catch (t: Throwable) {
                 android.util.Log.e("ChatViewModel", "pc image send failed: $t")
             }
-            _isGenerating.value = false
+            _isGenerating.value = false; stopBg()
         }
     }
 
@@ -811,7 +815,7 @@ class ChatViewModel : ViewModel() {
             } catch (t: Throwable) {
                 android.util.Log.e("ChatViewModel", "pc file send failed: $t")
             }
-            _isGenerating.value = false
+            _isGenerating.value = false; stopBg()
         }
     }
 

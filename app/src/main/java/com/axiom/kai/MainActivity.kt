@@ -220,6 +220,15 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             }
         }
     }
+    // 🔔 Notification permission for background generation (Android 13+)
+    val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     // 📎 File explorer: pick ANY file → Kai reads content into context (or sends to PC if kai-pc)
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { u ->
