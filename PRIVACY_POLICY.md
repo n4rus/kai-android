@@ -59,7 +59,7 @@ Not directed to children under 13. No data is collected from anyone.
 
 ## 7. Contact
 
-Lucas Eduardo Jaguszewski da Silva (n4rus) — com.axiom.kai — https://github.com/n4rus/kai-android — lucasejs@live.com
+Lucas Eduardo Jaguszewski da Silva (n4rus) — com.axiom.kai — https://github.com/n4rus/kai-android — kaioffline@proton.com
 
 **Public URL (Play Console → Store settings → Privacy policy):**
 https://n4rus.github.io/kai-android/privacy.html

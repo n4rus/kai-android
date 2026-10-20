@@ -4,7 +4,7 @@
 
 - **App name (30 chars max):** `Kai — Offline AI`
 - **Category:** Tools (secondary: Productivity)
-- **Contact email:** lucasejs@live.com
+- **Contact email:** kaioffline@proton.com
 - **Website (optional):** https://github.com/n4rus/kai-android
 - **Privacy policy URL:** https://n4rus.github.io/kai-android/privacy.html
 - **Ads:** **No** — no advertising SDK
