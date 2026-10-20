@@ -99,7 +99,7 @@ Optional user-initiated features (not developer collection): Kai PC bridge sends
 
 - **App icon 512x512:** `play-icon-512.png` (generated from `kai_logo_earth.png`)
 - **Feature graphic 1024x500, no alpha:** `feature-graphic-1024x500.png` (generated from `kai_background.png`)
-- **Screenshots:** at least 2 phone screenshots (9:16, 1080x1920 recommended)
+- **Screenshots (ready, 1170x2340 = 2:1):** `store-assets/screenshots/01_home.png`, `02_chat.png`, `03_settings.png`, `04_models.png`
 - 7" tablet screenshot (optional, improves ranking)
 
 ## Release track plan

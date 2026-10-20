@@ -6,7 +6,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Gemini client — uses API key stored after Google Sign-In.
+ * Gemini client — uses a locally stored API key (no account).
  * Free tier: gemini-1.5-flash (default), gemini-1.5-pro.
  * After login, user pastes key from aistudio.google.com (stored securely).
  */

@@ -242,7 +242,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("✦", style = MaterialTheme.typography.titleMedium)
                                     Spacer(Modifier.width(12.dp))
-                                    Text(Lang.t(ctx, "Google Sign-In & API Keys", "Entrar com Google & Chaves API"), style = MaterialTheme.typography.bodyMedium)
+                                    Text(Lang.t(ctx, "API Keys", "Chaves de API"), style = MaterialTheme.typography.bodyMedium)
                                 }},
                                 onClick = { showGeminiSettings = true; configExpanded = false }
                             )
