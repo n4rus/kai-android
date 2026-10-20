@@ -55,4 +55,7 @@ Not directed to children under 13. No age gate, but no data collected from child
 
 Lucas Eduardo Jaguszewski da Silva (n4rus) — com.axiom.kai — https://github.com/n4rus/kai-android — lucasejs@live.com
 
-Host this file at `https://n4rus.github.io/kai-android/privacy.html` or your domain and paste URL into Play Console → Store settings → Privacy policy.
+**Public URL (Play Console → Store settings → Privacy policy):**
+https://n4rus.github.io/kai-android/privacy.html
+
+The hosted page is `docs/privacy.html` in this repository (GitHub Pages → branch `main` → `/docs`).
