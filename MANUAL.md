@@ -103,7 +103,7 @@ Kai is **tool-aware** `Tools.kt:407` `FUNCTION CALLING` — `YOU CAN CALL THEM Y
 
 **Pro** `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (`non-consumable`, `hasPro`) + legacy `v2/v3 30/90d` also grant pro. Picker `MainActivity.kt:476` if `requiresPro` (`axiom:3b`, `nomic`) and `!hasPro` → `🔒 Pro early access` toast. `Kai Pro — $4.99 one-time (early access + support development)` `MainActivity.kt:464` `launchPurchase(PRO)`. Pro is optional: early models + supporting a solo dev; no ads are shown to anyone.
 
-**Play Console:** Create `Managed product` `kai_pro` `$4.99` `one-time`, not subscription. `Billing 6.1.0`.
+**Play Console:** Create `Managed product` `kai_pro` `$4.99` `one-time`, not subscription. `Billing 8.3.0`.
 
 ---
 
@@ -158,6 +158,6 @@ See `PRIVACY_POLICY.md` — offline-first, `kai.db` local + `AES`, `Firebase` on
 
 ## 12. Versions
 
-`1.0.3` `v6` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 36` `Firebase BoM 32.7.4` `Billing 6.1.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.0.4` `v7` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 36` `Firebase BoM 32.7.4` `Billing 8.3.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`

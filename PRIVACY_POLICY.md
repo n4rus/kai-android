@@ -32,7 +32,7 @@ Kai is **offline-first**. Your privacy is the core feature.
 
 - Firebase Authentication (optional, only when `google-services.json` is real): email verification and password reset. https://firebase.google.com/support/privacy
 - Google Sign-In: https://policies.google.com/privacy
-- Google Play Billing 6.1.0: `kai_pro` $4.99 one-time in-app product (no subscription).
+- Google Play Billing 8.3.0: `kai_pro` $4.99 one-time in-app product (no subscription).
 - Hugging Face / GitHub for model files.
 
 No advertising networks, no analytics providers, no data brokers.

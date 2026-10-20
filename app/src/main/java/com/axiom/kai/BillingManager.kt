@@ -21,7 +21,10 @@ class BillingManager(private val ctx: Context) : PurchasesUpdatedListener {
 
     private val client = BillingClient.newBuilder(ctx)
         .setListener(this)
-        .enablePendingPurchases()
+        .enablePendingPurchases(
+            PendingPurchasesParams.newBuilder().enableOneTimeProducts().build()
+        )
+        .enableAutoServiceReconnection()
         .build()
 
     // Pro one-time — true if ever purchased (non-consumable)
@@ -55,7 +58,16 @@ class BillingManager(private val ctx: Context) : PurchasesUpdatedListener {
                     QueryProductDetailsParams.Product.newBuilder()
                         .setProductId(it).setProductType(BillingClient.ProductType.INAPP).build()
                 }).build()
-            client.queryProductDetailsAsync(params) { _, list -> onResult(list ?: emptyList()) }
+            client.queryProductDetailsAsync(params, object : ProductDetailsResponseListener {
+                override fun onProductDetailsResponse(result: BillingResult, queryResult: QueryProductDetailsResult) {
+                    val list = if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                        queryResult.productDetailsList
+                    } else {
+                        emptyList()
+                    }
+                    onResult(list)
+                }
+            })
         }
     }
 
@@ -111,10 +123,22 @@ class BillingManager(private val ctx: Context) : PurchasesUpdatedListener {
 
     private fun queryPurchases() {
         client.queryPurchasesAsync(
-            QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
-        ) { _, list ->
-            // purchases will be delivered via onPurchasesUpdated after connect if needed
-            // For restore: if user reinstalled, purchases are still there until consumed
-        }
+            QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build(),
+            object : PurchasesResponseListener {
+                override fun onQueryPurchasesResponse(result: BillingResult, purchases: MutableList<Purchase>) {
+                    if (result.responseCode != BillingClient.BillingResponseCode.OK) return
+                    purchases.forEach { p ->
+                        if (p.purchaseState != Purchase.PurchaseState.PURCHASED) return@forEach
+                        if (p.products.contains(BillingSkus.PRO)) {
+                            prefs.edit().putBoolean("pro_purchased", true).apply()
+                            if (!p.isAcknowledged) {
+                                val ackParams = AcknowledgePurchaseParams.newBuilder().setPurchaseToken(p.purchaseToken).build()
+                                client.acknowledgePurchase(ackParams) { _ -> }
+                            }
+                        }
+                    }
+                }
+            }
+        )
     }
 }

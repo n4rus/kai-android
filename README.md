@@ -130,7 +130,7 @@ kai-android/
         BillingManager.kt (PRO $4.99), KaiPcClient.kt (TLS+token, /send-email)
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 36, versionCode 6, Firebase BoM 32.7.4, Billing 6.1.0, Room 2.6.1)
+    build.gradle.kts (compileSdk 36, versionCode 7, Firebase BoM 32.7.4, Billing 8.3.0, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
   app/google-services.json (placeholder → real kai-android-c291c)
   kai-upload.jks + keystore.properties
