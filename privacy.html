@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="canonical" href="https://n4rus.github.io/kai-android/privacy.html">
+<meta name="description" content="Privacy policy for Kai — Offline AI Companion (com.axiom.kai). No ads, no analytics, local-first.">
+<title>Privacy Policy — Kai</title>
+<style>
+:root{color-scheme:dark}
+body{max-width:760px;margin:0 auto;padding:32px 20px 80px;background:#0B1026;color:#e8ecff;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+h1{font-size:1.9rem;line-height:1.2;margin:0 0 .3rem}
+h2{margin-top:2rem;font-size:1.15rem;color:#9fc4ff}
+a{color:#7fb0ff}
+code{background:#151c3a;padding:1px 5px;border-radius:4px;font-size:.9em}
+.muted{color:#9aa4c8;font-size:.9rem}
+ul{padding-left:1.2rem}
+li{margin:.35rem 0}
+hr{border:0;border-top:1px solid #232b52;margin:2rem 0}
+</style>
+</head>
+<body>
+<h1>Privacy Policy — Kai — Offline AI Companion</h1>
+<p class="muted"><strong>Effective Date:</strong> Oct 19, 2026 · <strong>Package:</strong> <code>com.axiom.kai</code></p>
+<p>Kai is <strong>offline-first</strong>. Your privacy is the core feature.</p>
+
+<h2>1. Data We Collect</h2>
+<h3>1.1 Account (if you create one)</h3>
+<ul>
+<li>Email, username, recovery email, password hash (SHA-256 + salt, stored locally on device via <code>kai_accounts.xml</code>).</li>
+<li>If Firebase Auth is configured (Play Store release), email/password are also sent to Firebase Authentication (Google) to send the real verification email. See <a href="https://firebase.google.com/support/privacy">firebase.google.com/support/privacy</a>.</li>
+<li>Google Sign-In: if you use Google Sign-In, we receive your Google email and display name via <code>play-services-auth</code>. If Firebase is configured, an ID token is sent to Firebase Auth. No Google data is sent elsewhere.</li>
+</ul>
+
+<h3>1.2 Chat History &amp; Memory</h3>
+<ul>
+<li>All messages, memories, and chat history are stored <strong>only on your device</strong> in <code>kai.db</code> (Room) and <code>kai.db.backup</code>. If you create a password, they are AES/CBC encrypted with a PBKDF2-derived key. They are <strong>never sent to our servers</strong>.</li>
+<li>Optional export to <code>/Download/kai_*.json</code> is user-initiated only.</li>
+</ul>
+
+<h3>1.3 Device / Diagnostics</h3>
+<ul>
+<li>No analytics SDK, no crash reporting SDK, <strong>no advertising SDK</strong>. No data shared with third parties.</li>
+<li>Model downloads use GitHub/Hugging Face URLs via Android DownloadManager — your IP is visible to those hosts per their policies.</li>
+</ul>
+
+<h2>2. Permissions</h2>
+<ul>
+<li><code>INTERNET</code>, <code>ACCESS_NETWORK_STATE</code>: model download, Kai PC live bridge (LAN only, TLS + Bearer token), Firebase Auth (if configured), Billing.</li>
+<li><code>POST_NOTIFICATIONS</code> (Android 13+): background generation progress notification.</li>
+<li><code>FOREGROUND_SERVICE</code>, <code>WAKE_LOCK</code>: keep generation running while the screen is off.</li>
+<li><code>WRITE_EXTERNAL_STORAGE</code> (maxSdk 28): legacy export to Download on Android 9 and below.</li>
+<li>No <code>READ_CONTACTS</code>, <code>LOCATION</code>, <code>MICROPHONE</code> (mic only if you grant for voice input — audio stays on device).</li>
+</ul>
+
+<h2>3. Third-Party Services</h2>
+<ul>
+<li>Firebase Authentication (optional): <a href="https://firebase.google.com/support/privacy">privacy</a>.</li>
+<li>Google Sign-In: <a href="https://policies.google.com/privacy">privacy</a>.</li>
+<li>Google Play Billing 6.1.0: <code>kai_pro</code> $4.99 one-time in-app product (no subscription).</li>
+<li>Hugging Face / GitHub for model files.</li>
+</ul>
+<p>No advertising networks, no analytics providers, no data brokers.</p>
+
+<h2>4. Data Retention &amp; Deletion</h2>
+<ul>
+<li>Account → <code>⚙️ → Account → Delete</code> permanently deletes the local account. If Firebase is configured, it also deletes the Firebase user.</li>
+<li>Uninstalling the app deletes all local databases. Backups are not retained.</li>
+</ul>
+
+<h2>5. Children's Privacy</h2>
+<p>Not directed to children under 13. No age gate, but no data collected from children.</p>
+
+<h2>6. Security</h2>
+<ul>
+<li>Passwords: SHA-256 + 16-byte salt. Chat: AES/CBC PKCS5 + random IV + <code>ENC:</code> prefix, key via PBKDF2WithHmacSHA256 10k iterations, 256-bit.</li>
+<li>Kai PC bridge: self-signed TLS + Bearer token, LAN only.</li>
+</ul>
+
+<h2>7. Contact</h2>
+<p>Lucas Eduardo Jaguszewski da Silva (n4rus) — <code>com.axiom.kai</code><br>
+<a href="https://github.com/n4rus/kai-android">github.com/n4rus/kai-android</a> · <a href="mailto:lucasejs@live.com">lucasejs@live.com</a></p>
+
+<hr>
+<p class="muted">Kai contains no advertising or analytics SDK.</p>
+</body>
+</html>
