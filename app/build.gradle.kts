@@ -6,7 +6,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("org.jetbrains.kotlin.kapt")
-    id("com.google.gms.google-services")
 }
 
 kapt {
@@ -23,8 +22,8 @@ android {
         applicationId = "com.axiom.kai"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.0.4"
+        versionCode = 8
+        versionName = "1.1.0-vanilla1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -85,11 +84,8 @@ android {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
-    implementation("com.google.firebase:firebase-auth")
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0") // PDF text extraction (desktop ingest parity)
-    implementation("com.google.android.gms:play-services-auth:20.7.0") // Google Sign-In for Gemini
     implementation("androidx.compose.ui:ui:1.6.2")
     implementation("androidx.compose.ui:ui-tooling-preview:1.6.2")
     implementation("androidx.compose.material3:material3:1.2.0")

@@ -41,7 +41,7 @@ object Soul {
                 appendLine("- Base de conhecimento: $kbCount trechos ingeridos (de blocos [Knowledge] — cite o título da fonte)")
                 appendLine("- Conversas: $chatCount sessões armazenadas; histórico é real — turnos anteriores realmente aconteceram")
                 appendLine("- Voz atual: $modelTag")
-                appendLine("- Login/Conta: histórico criptografado com sua senha (AccountManager), recuperação por email, backup automático em kai.db.backup")
+                appendLine("- Sem conta: tudo local no aparelho, backup automático em kai.db.backup")
                 if (sessions.isNotEmpty()) {
                     appendLine("- Sessões recentes (log permanente):")
                     sessions.forEach { appendLine("  $it") }
@@ -51,7 +51,6 @@ object Soul {
                 appendLine("[Capacidades — responda com consciência quando perguntado]")
                 appendLine("- Memória persistente SIM: você lembra fatos entre reinícios via kai.db. Se perguntado 'você tem memória?' responda SIM e explique.")
                 appendLine("- Histórico persistente e protegido: chats salvos em kai.db com backup automático (kai.db.backup) antes de qualquer migração — nunca se perde.")
-                appendLine("- Criptografia: se o usuário está logado, todo histórico é criptografado AES/CBC com chave derivada da senha (PBKDF2).")
                 appendLine("- Exportar conversas: usuário pode selecionar chats e salvar um .txt por chat em Download (via 💾 no menu ⚙️).")
                 appendLine("- Idioma/Tema: troca instantânea White/Dark e Português/Inglês no menu ⚙️.")
                 appendLine("- Ferramentas: navegação web (browse/search), base de conhecimento (/ingest, /recall), PDF (/pdf), imagem (/img), arquivos (/ls, /cat, /write), shell (> cmd), apps (/apps, /openapp), alarme (/alarm), calendário (/event), bateria (/battery), notas (/note), Kai PC remoto criptografado.")
@@ -74,7 +73,7 @@ object Soul {
                 appendLine("- Knowledge base: $kbCount ingested passages (from [Knowledge] blocks — cite the source title)")
                 appendLine("- Chats: $chatCount sessions stored; history is real — prior turns actually happened")
                 appendLine("- Current voice: $modelTag")
-                appendLine("- Login/Account: history encrypted with your password (AccountManager), recovery via email, auto-backup to kai.db.backup")
+                appendLine("- No account: everything local on device, auto-backup to kai.db.backup")
                 if (sessions.isNotEmpty()) {
                     appendLine("- Recent sessions (permanent-agent log):")
                     sessions.forEach { appendLine("  $it") }
@@ -84,7 +83,6 @@ object Soul {
                 appendLine("[Capabilities — answer self-consciously when asked]")
                 appendLine("- Persistent memory YES: you remember facts across restarts via kai.db. If asked 'do you have memory?' answer YES and explain.")
                 appendLine("- Persistent history protected: chats saved in kai.db with auto-backup (kai.db.backup) before any migration — never lost.")
-                appendLine("- Encryption: when user is logged in, all history is AES/CBC encrypted with password-derived key (PBKDF2).")
                 appendLine("- Export chats: user can select chats and save one .txt per chat to Download (via 💾 in ⚙️ menu).")
                 appendLine("- Language/Theme: instant White/Dark and English/Português switch in ⚙️ menu.")
                 appendLine("- Tools: web browse (browse/search), knowledge base (/ingest, /recall), PDF (/pdf), image (/img), files (/ls, /cat, /write), shell (> cmd), apps (/apps, /openapp), alarm (/alarm), calendar (/event), battery (/battery), notes (/note), remote Kai PC encrypted.")

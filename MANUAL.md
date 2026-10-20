@@ -89,13 +89,16 @@ Kai is **tool-aware** `Tools.kt:407` `FUNCTION CALLING` — `YOU CAN CALL THEM Y
 
 ---
 
-## 6. Account & Encryption
+## 6. No Account (Vanilla 1)
 
-**Create:** `⚙️ → 🔐` → `Create Account` → `Username/Email/Recovery email/Password + Confirm Password` `MainActivity.kt:860` `AccountManager.kt:152` → `SHA-256+salt` + `PBKDF2 AES/CBC ENC:` `encKey` `isEncryptedMode`, `strongPassword 8+1 caps+1 special`, confirmation email `sendConfirmationEmail` `AccountManager.kt:68` — local inbox + `KaiPcClient.sendEmail` (dev SMTP) + `FirebaseHelper.createAccountAndSendVerification` when `google-services.json` real (`kai-android-c291c`).
+Kai has **no account, no login, no email, no Firebase**. The account system was removed in `1.1.0-vanilla1`.
 
-**Login:** `⚙️ → 🔐` → `Login` → `G #4285F4 OutlinedButton "Sign in with Google"` `MainActivity.kt:831` `GoogleAuthManager.kt:20` `requestEmail` (+ `requestIdToken` for Firebase) → `handleResult` creates/links local `kai_accounts.xml` `GOOGLE:` hash + `Firebase signInWithGoogle` if configured → `GeminiClient.setLoggedIn`. Or `Email/Password` `AccountManager.login`.
+- Open the app and chat — nothing to create or verify
+- Chats and memories live in the app-private Room `kai.db`
+- `android:allowBackup="false"` — no Google Drive backup
+- Delete individual chats in-app, or uninstall to remove all data
 
-**Logged in:** `MainActivity.kt:800` `Logged in as uname` `History encrypted ✓`, `📧 View Email` opens local inbox `AccountManager.getConfirmationEmail`, `Delete` (red) → confirmation `Are you sure?` → `deleteAccount` `AccountManager.kt:213` + `Firebase delete`, `Logout`, `Forgot password?` → `requestRecovery` → email `kai://recovery?token=…` + `resetPassword`.
+The previous account build is preserved in git tag `v1.0.4-account`.
 
 ---
 
@@ -111,21 +114,19 @@ Kai is **tool-aware** `Tools.kt:407` `FUNCTION CALLING` — `YOU CAN CALL THEM Y
 
 Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 
-**PC:** `python3 axiom_horizon/tools/kai_pc_server.py --port 8443 --token kai-secret-123 [--smtp-host ... --smtp-user ... --smtp-pass ... --from ...]` → `https://0.0.0.0:8443` `health/live/send-email`
+**PC:** `python3 axiom_horizon/tools/kai_pc_server.py --port 8443 --token kai-secret-123` → `https://0.0.0.0:8443` `health/live`
 
 **Phone:** `⚙️ → 🖥️` → `192.168.100.208:8443` + `kai-secret-123` (`kai_pc.xml`) `isConfigured`, `autoDiscover` `KaiPcClient:44` + `adb reverse tcp:8443`. picker `kai-pc:live` → `send` `KaiPcClient.send` `POST /` `type text/file/image` base64, `fetchLive` `/live`.
-
-**Email dev:** `KaiPcClient.sendEmail` `POST /send-email` `{to,subject,html,text}` → `kai_pc_server.py:103` `smtplib` `MIMEMultipart`.
 
 ---
 
 ## 9. Settings (⚙️)
 
-- `✦ Google Sign-In & API Keys` → `Sign in with Google` / `Sign out` `GoogleAuthManager`, `Gemini 1.5 flash/pro` API key `GeminiClient`
+- `✦ API Keys` → `Gemini 1.5 flash/pro` key `GeminiClient`, plus DeepSeek/OpenAI/Qwen/Claude `RemoteLLMClient` (stored locally)
 - `🎨 Theme: Dark/White` `getThemeMode` `kai_theme.xml` `0/1` `ThemeVersion`
 - `⚡ VFE ON/OFF` `show_physics` `kai_prefs`, tap cards to hide (see §3)
 - `🌐 Language: en/pt` `Lang.kt` `version` live recomposition
-- `🔐 Login/Create` + `💾 Export chats to Download` `getExternalFilesDir` + `Tool` export `MemoryDbKtDarwinSyncExport`
+- `💾 Export chats to Download` `getExternalFilesDir` + `Tool` export `MemoryDbKtDarwinSyncExport`
 - `🖥️ Kai PC`
 
 ---
@@ -140,11 +141,9 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 | Freeze while thinking | `16` batch + `generating` guard `MainActivity.kt:558` `if(generating) return`; don't spam taps |
 | `120s` still | ensure `n_gpu 99` Vulkan loaded (`adb logcat KaiBridge`), else `CPU` slower — use `2B` or wait `192` tok `lib.rs:279` |
 | Background stops | `POST_NOTIFICATIONS` granted? Don't swipe-kill; `KaiForegroundService` notification must stay |
-| `Google error 10` | `SHA1` mismatch `EE:A9:BE:6F…` — re-download `google-services.json` with correct `SHA1/SHA256` |
-| `Recovery email not found` | use `recoveryEmail` or `email`, check `kai_accounts.xml` via `run-as cat shared_prefs/kai_accounts.xml` |
 | `no GGUF — picker` | `.part` stale `cleanStaleDownloads` `ChatViewModel.kt:50`, resume via `directFallback` |
 
-**Logs:** `adb -s RQGYC026B0T shell logcat -d | grep -E "KaiBridge|ChatViewModel|AccountManager|Billing"`
+**Logs:** `adb -s RQGYC026B0T shell logcat -d | grep -E "KaiBridge|ChatViewModel|Billing"`
 
 **DB headless:** `adb shell run-as com.axiom.kai cat databases/kai.db` + `sqlite3` `select role,substr(text,1,60),model from messages`
 
@@ -152,12 +151,12 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 
 ## 11. Privacy
 
-See `PRIVACY_POLICY.md` — offline-first, `kai.db` local + `AES`, `Firebase` only when `google-services.json` real, no analytics, host as `https://n4rus.github.io/kai-android/privacy.html`.
+See `PRIVACY_POLICY.md` — no account, no data collected/shared, `kai.db` local, no analytics/ads/Firebase: `https://n4rus.github.io/kai-android/privacy.html`.
 
 ---
 
 ## 12. Versions
 
-`1.0.4` `v7` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 36` `Firebase BoM 32.7.4` `Billing 8.3.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.1.0-vanilla1` `v8` `AAB 25M` `APK 21M` `minSdk 26` `targetSdk 36` `Billing 8.3.0` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`

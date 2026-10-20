@@ -144,9 +144,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var showGeminiSettings by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
     var showLangPicker by remember { mutableStateOf(false) }
-    var showAccount by remember { mutableStateOf(false) }
-    var showCreateAccount by remember { mutableStateOf(false) }
-    var showRecovery by remember { mutableStateOf(false) }
     var showExportChats by remember { mutableStateOf(false) }
     var deleteModelTag by remember { mutableStateOf<String?>(null) }
     val models = ModelCatalog.models
@@ -167,25 +164,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 val msg = "📷 ${it.lastPathSegment ?: "image"} — describe this image"
                 vm.send(ctx, msg)
                 Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-    val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
-        GoogleAuthManager.handleResult(ctx, res.data) { ok, msg ->
-            when {
-                ok -> {
-                    Toast.makeText(ctx, "Google ✓ $msg — now paste Gemini API key", Toast.LENGTH_SHORT).show()
-                    showGeminiSettings = true
-                }
-                msg == "login_unavailable_fallback_key" -> {
-                    // Error 10 (DEVELOPER_ERROR): Google login not configured.
-                    // Fall back straight to the API key prompt — Gemini free tier works with just the key.
-                    showGeminiSettings = true
-                    Toast.makeText(ctx, "Google login unavailable — paste your free Gemini API key from aistudio.google.com", Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(ctx, "Sign-in failed: $msg", Toast.LENGTH_SHORT).show()
-                }
             }
         }
     }
@@ -301,14 +279,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                 onClick = { showLangPicker = true; configExpanded = false }
                             )
                             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                            DropdownMenuItem(
-                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("🔐", style = MaterialTheme.typography.titleMedium)
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(if (AccountManager.isLoggedIn(ctx)) Lang.t(ctx, "Account: ${AccountManager.currentUsername(ctx) ?: AccountManager.currentEmail}", "Conta: ${AccountManager.currentUsername(ctx) ?: AccountManager.currentEmail}") else Lang.t(ctx, "Login / Create Account", "Entrar / Criar Conta"), style = MaterialTheme.typography.bodyMedium)
-                                }},
-                                onClick = { showAccount = true; configExpanded = false }
-                            )
                             DropdownMenuItem(
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("💾", style = MaterialTheme.typography.titleMedium)
@@ -702,22 +672,12 @@ Column(Modifier.padding(12.dp)) {
         var gptKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "openai") ?: "") }
         var qwenKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "qwen") ?: "") }
         var claudeKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "claude") ?: "") }
-        val isIn = GeminiClient.isLoggedIn(ctx) || GoogleAuthManager.isSignedIn(ctx)
         AlertDialog(
             onDismissRequest = { showGeminiSettings = false },
             title = { Text("Remote LLMs — API keys") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text("Gemini (Google) — free after login", style = MaterialTheme.typography.labelMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isIn) {
-                            Text("✓ Signed in", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                            Spacer(Modifier.width(8.dp))
-                            TextButton(onClick = { GoogleAuthManager.signOut(ctx) { Toast.makeText(ctx, "Signed out", Toast.LENGTH_SHORT).show() } }) { Text("Sign out") }
-                        } else {
-                            Button(onClick = { googleSignInLauncher.launch(GoogleAuthManager.signInIntent(ctx)) }) { Text("Sign in with Google") }
-                        }
-                    }
+                    Text("Gemini (Google) — paste API key from aistudio.google.com", style = MaterialTheme.typography.labelMedium)
                     OutlinedTextField(value = gemKey, onValueChange = { gemKey = it }, label = { Text("Gemini API key (aistudio.google.com)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     if (GeminiClient.hasApiKey(ctx)) Text("✓ Gemini key saved", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
                     HorizontalDivider(Modifier.padding(vertical = 4.dp))
@@ -819,256 +779,6 @@ Column(Modifier.padding(12.dp)) {
             dismissButton = { TextButton(onClick = { showLangPicker = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
         )
     }
-    if (showAccount) {
-        val logged = AccountManager.isLoggedIn(ctx)
-        if (logged) {
-            val uname = AccountManager.currentUsername(ctx) ?: ""
-            val email = AccountManager.currentEmail ?: ""
-            var showDeleteConfirm by remember { mutableStateOf(false) }
-            var showConfirmation by remember { mutableStateOf(false) }
-            AlertDialog(
-                onDismissRequest = { showAccount = false },
-                title = { Text(Lang.t(ctx, "Account", "Conta")) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(Lang.t(ctx, "Logged in as", "Conectado como") + " $uname", style = MaterialTheme.typography.bodyMedium)
-                        Text(email, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (AccountManager.isEncryptedMode()) {
-                            Text(Lang.t(ctx, "History encrypted ✓", "Histórico criptografado ✓"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
-                        } else {
-                            Text(Lang.t(ctx, "History not encrypted", "Histórico não criptografado"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        AccountManager.logout(ctx)
-                        Toast.makeText(ctx, Lang.t(ctx, "Logged out", "Desconectado"), Toast.LENGTH_SHORT).show()
-                        showAccount = false
-                    }) { Text(Lang.t(ctx, "Logout", "Sair")) }
-                },
-                dismissButton = {
-                    Column {
-                        Row {
-                            TextButton(onClick = { showConfirmation = true }) {
-                                Text(Lang.t(ctx, "📧 View Email", "📧 Ver Email"), style = MaterialTheme.typography.labelSmall)
-                            }
-                            TextButton(onClick = { showDeleteConfirm = true }) {
-                                Text(Lang.t(ctx, "Delete", "Excluir"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                        TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
-                    }
-                }
-            )
-            // Confirmation email viewer
-            if (showConfirmation) {
-                val emailBody = AccountManager.getConfirmationEmail(ctx)
-                AlertDialog(
-                    onDismissRequest = { showConfirmation = false },
-                    title = { Text(Lang.t(ctx, "Confirmation Email", "Email de Confirmação")) },
-                    text = {
-                        if (emailBody != null) {
-                            Text(emailBody, style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            Text(Lang.t(ctx, "No confirmation email found.", "Nenhum email de confirmação encontrado."), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    },
-                    confirmButton = { TextButton(onClick = { showConfirmation = false }) { Text("OK") } }
-                )
-            }
-            // Delete account confirmation dialog
-            if (showDeleteConfirm) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteConfirm = false },
-                    title = { Text(Lang.t(ctx, "Delete Account?", "Excluir Conta?"), color = MaterialTheme.colorScheme.error) },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(Lang.t(ctx,
-                                "This will permanently delete your account and all encrypted chat history. This action cannot be undone.",
-                                "Isso excluirá permanentemente sua conta e todo o histórico de chat criptografado. Esta ação não pode ser desfeita."),
-                                style = MaterialTheme.typography.bodyMedium)
-                            Text(Lang.t(ctx, "Are you sure?", "Tem certeza?"), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val currentEmail = AccountManager.currentEmail ?: ""
-                            val deleted = AccountManager.deleteAccount(ctx)
-                            if (deleted) {
-                                Toast.makeText(ctx, Lang.t(ctx, "Account deleted", "Conta excluída"), Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(ctx, Lang.t(ctx, "Delete failed", "Falha ao excluir"), Toast.LENGTH_SHORT).show()
-                            }
-                            showDeleteConfirm = false
-                            showAccount = false
-                            vm.initPersistence(ctx)
-                        }) {
-                            Text(Lang.t(ctx, "Yes, Delete", "Sim, Excluir"), color = MaterialTheme.colorScheme.error)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteConfirm = false }) {
-                            Text(Lang.t(ctx, "Cancel", "Cancelar"))
-                        }
-                    }
-                )
-            }
-        } else {
-            var email by remember { mutableStateOf("") }
-            var pw by remember { mutableStateOf("") }
-            var err by remember { mutableStateOf<String?>(null) }
-            AlertDialog(
-                onDismissRequest = { showAccount = false },
-                title = { Text(Lang.t(ctx, "Login", "Entrar")) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Google sign-in button (official Google style, like most modern apps)
-                        OutlinedButton(
-                            onClick = { googleSignInLauncher.launch(GoogleAuthManager.signInIntent(ctx)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
-                        ) {
-                            androidx.compose.foundation.layout.Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                // Inline Google "G" logo
-                                Box(
-                                    modifier = Modifier.size(20.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("G", style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color(0xFF4285F4))
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Text(Lang.t(ctx, "Sign in with Google", "Entrar com Google"), style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                        // Divider with "or"
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            androidx.compose.material3.HorizontalDivider(modifier = Modifier.weight(1f))
-                            Text("  " + Lang.t(ctx, "or", "ou") + "  ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            androidx.compose.material3.HorizontalDivider(modifier = Modifier.weight(1f))
-                        }
-                        OutlinedTextField(value = email, onValueChange = { email = it; err = null }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = pw, onValueChange = { pw = it; err = null }, label = { Text(Lang.t(ctx, "Password", "Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
-                        if (err != null) Text(err!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                        TextButton(onClick = { showRecovery = true; showAccount = false }, modifier = Modifier.align(Alignment.Start)) { Text(Lang.t(ctx, "Forgot password?", "Esqueceu a senha?"), style = MaterialTheme.typography.labelSmall) }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(Lang.t(ctx, "No account?", "Sem conta?"), style = MaterialTheme.typography.labelSmall)
-                            TextButton(onClick = { showCreateAccount = true; showAccount = false }) { Text(Lang.t(ctx, "Create account", "Criar conta")) }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val (ok, msg) = AccountManager.login(ctx, email, pw)
-                        if (ok) {
-                            Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
-                            showAccount = false
-                            vm.initPersistence(ctx)
-                        } else err = msg
-                    }) { Text(Lang.t(ctx, "Login", "Entrar")) }
-                },
-                dismissButton = { TextButton(onClick = { showAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) } }
-            )
-        }
-    }
-    if (showCreateAccount) {
-        var username by remember { mutableStateOf("") }
-        var email by remember { mutableStateOf("") }
-        var recoveryEmail by remember { mutableStateOf("") }
-        var pw by remember { mutableStateOf("") }
-        var pwConfirm by remember { mutableStateOf("") }
-        var err by remember { mutableStateOf<String?>(null) }
-        AlertDialog(
-            onDismissRequest = { showCreateAccount = false },
-            title = { Text(Lang.t(ctx, "Create Account", "Criar Conta")) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    OutlinedTextField(value = username, onValueChange = { username = it; err = null }, label = { Text(Lang.t(ctx, "Username", "Nome de usuário")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = email, onValueChange = { email = it; err = null }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = recoveryEmail, onValueChange = { recoveryEmail = it }, label = { Text(Lang.t(ctx, "Recovery email (optional)", "Email de recuperação (opcional)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = pw, onValueChange = { pw = it; err = null }, label = { Text(Lang.t(ctx, "Password", "Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
-                    OutlinedTextField(value = pwConfirm, onValueChange = { pwConfirm = it; err = null }, label = { Text(Lang.t(ctx, "Confirm Password", "Confirmar Senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
-                    Text(Lang.t(ctx, "8+ chars, 1 uppercase, 1 special char", "8+ caracteres, 1 maiúscula, 1 especial"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (err != null) Text(err!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                    Text(Lang.t(ctx, "History will be encrypted with your password", "Histórico será criptografado com sua senha"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val rec = if (recoveryEmail.isBlank()) email else recoveryEmail
-                    val (ok, msg) = AccountManager.createAccount(ctx, username, email, rec, pw, pwConfirm)
-                    if (ok) {
-                        Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
-                        showCreateAccount = false
-                        showAccount = false
-                        vm.initPersistence(ctx)
-                    } else err = msg
-                }) { Text(Lang.t(ctx, "Create", "Criar")) }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { showCreateAccount = false; showAccount = true }) { Text(Lang.t(ctx, "Back", "Voltar")) }
-                    TextButton(onClick = { showCreateAccount = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
-                }
-            }
-        )
-    }
-    if (showRecovery) {
-        var recEmail by remember { mutableStateOf("") }
-        var token by remember { mutableStateOf("") }
-        var newPw by remember { mutableStateOf("") }
-        var msg by remember { mutableStateOf<String?>(null) }
-        var isError by remember { mutableStateOf(false) }
-        var sent by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { showRecovery = false },
-            title = { Text(Lang.t(ctx, "Recover Password", "Recuperar Senha")) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    if (!sent) {
-                        Text(Lang.t(ctx, "Enter your recovery email to receive a reset link", "Digite seu email de recuperação para receber o link"), style = MaterialTheme.typography.bodySmall)
-                        OutlinedTextField(value = recEmail, onValueChange = { recEmail = it }, label = { Text(Lang.t(ctx, "Recovery email", "Email de recuperação")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    } else {
-                        Text(Lang.t(ctx, "Enter the token sent to your email and new password", "Digite o token enviado e a nova senha"), style = MaterialTheme.typography.bodySmall)
-                        OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text(Lang.t(ctx, "Recovery token", "Token de recuperação")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = newPw, onValueChange = { newPw = it }, label = { Text(Lang.t(ctx, "New password", "Nova senha")) }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
-                        Text(Lang.t(ctx, "8+ chars, 1 uppercase, 1 special char", "8+ caracteres, 1 maiúscula, 1 especial"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (msg != null) Text(msg!!, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
-                }
-            },
-            confirmButton = {
-                if (!sent) {
-                    TextButton(onClick = {
-                        val (ok, m) = AccountManager.requestRecovery(ctx, recEmail)
-                        msg = m; isError = !ok; if (ok) sent = true
-                    }) { Text(Lang.t(ctx, "Send link", "Enviar link")) }
-                } else {
-                    TextButton(onClick = {
-                        val (ok, m) = AccountManager.resetPassword(ctx, token, newPw)
-                        msg = m; isError = !ok
-                        if (ok) {
-                            Toast.makeText(ctx, m, Toast.LENGTH_SHORT).show()
-                            showRecovery = false
-                            vm.initPersistence(ctx)
-                        }
-                    }) { Text(Lang.t(ctx, "Reset", "Redefinir")) }
-                }
-            },
-            dismissButton = {
-                Row {
-                    if (sent) TextButton(onClick = { sent = false; msg = null }) { Text(Lang.t(ctx, "Back", "Voltar")) }
-                    TextButton(onClick = { showRecovery = false }) { Text(Lang.t(ctx, "Close", "Fechar")) }
-                }
-            }
-        )
-    }
     if (showExportChats) {
         val chats = vm.chatList.collectAsState().value
         var selected by remember { mutableStateOf(setOf<String>()) }
@@ -1120,7 +830,7 @@ Column(Modifier.padding(12.dp)) {
                             msgs.forEach { m ->
                                 val role = m.role
                                 val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(m.ts))
-                                val text = AccountManager.decrypt(m.text)
+                                val text = m.text
                                 append("[$time] $role: $text\n\n")
                             }
                         }

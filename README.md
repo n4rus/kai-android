@@ -9,7 +9,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin)](app/src/main/java/com/axiom/kai/)
 [![Play Store](https://img.shields.io/badge/Play_Store-1.0.2--bg--service-41454A?logo=googleplay)](STORE_LISTING.md)
 
-**Package:** `com.axiom.kai` • **Current:** `1.0.2-bg-service` (`versionCode 5`) • **AAB 28M** • **Min SDK 26** • **NDK 28.2** • **Compose Material3**
+**Package:** `com.axiom.kai` • **Current:** `1.1.0-vanilla1` (`versionCode 8`) • **AAB 25M** • **Min SDK 26** • **NDK 28.2** • **Compose Material3**
 
 This is the **clean public repo** for the Android app. The parent `axiom_horizon` (40GB history) stays private until store-ready.
 
@@ -47,13 +47,13 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 
 ### Agent & Tools (`Tools.kt:10`)
 **14 tools, LLM can call itself** `Tools.kt:407` `FUNCTION CALLING` (`/search <q>` → system executes → follow-up generation `ChatViewModel.kt:674`):
-`browse`, `search` (DuckDuckGo), `ingest/recall`, `pdf` (`pdfbox-android`), `img` (local EXIF, full vision via Kai PC), `ls/cat/write`, `shell` (`> cmd`), `apps/openapp/url`, `alarm/event`, `battery`, `note`, `account/encryption`, `export` (`⚙️→💾`), `Kai PC` (`KaiPcClient.kt`)
+`browse`, `search` (DuckDuckGo), `ingest/recall`, `pdf` (`pdfbox-android`), `img` (local EXIF, full vision via Kai PC), `ls/cat/write`, `shell` (`> cmd`), `apps/openapp/url`, `alarm/event`, `battery`, `note`, `export` (`⚙️→💾`), `Kai PC` (`KaiPcClient.kt`)
 
-### Account & Security
-- `AccountManager.kt:80` `createAccount` — `username/email/recoveryEmail + password/confirm` → `SHA-256+salt` + `PBKDF2 AES/CBC ENC:` + `encKey`, `strongPasswordError` `8+1 caps+1 special`
-- `GoogleAuthManager.kt:20` `GoogleSignIn` `requestEmail` (+ `requestIdToken` for Firebase), `FirebaseHelper.kt:13` `isConfigured` check, `createAccountAndSendVerification` real email when `google-services.json` is real (`kai-android-c291c`), else local inbox + Kai PC SMTP `KaiPcClient.sendEmail`
-- `deleteAccount` `AccountManager.kt:213` with confirmation dialog `MainActivity.kt:615`
-- `login` + `Google Sign-In` button `MainActivity.kt:831` `OutlinedButton G #4285F4`
+### Privacy & Security
+- **No account, no login, no email** — open and chat; nothing to sign up for
+- Chats/memories in app-private Room `kai.db`; `allowBackup="false"` (no Google Drive copy)
+- No analytics, ads, Firebase, or crash reporting
+- Optional Kai PC bridge: self-signed TLS + Bearer token, LAN only
 
 ### Billing
 - `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (non-consumable, `hasPro`) + legacy `v2/v3 30/90d` also grant pro
@@ -79,7 +79,7 @@ User → Compose (MainActivity.kt:127 KaiScreen)
        ├─ ChatViewModel.kt (StateFlow messages/model/isGenerating, Room kai.db + backup, send pipeline)
        ├─ StreamingGenerate.kt → KaiBridge.kt → rust-bridge/src/lib.rs (JNI) → llama.cpp (Vulkan/CPU)
        ├─ MemoryDb.kt / KnowledgeDb.kt / Skills.kt / AgentLoop.kt / Tools.kt
-       ├─ AccountManager.kt / GoogleAuthManager.kt / FirebaseHelper.kt / BillingManager.kt / KaiPcClient.kt
+       ├─ BillingManager.kt / KaiPcClient.kt
        └─ KaiForegroundService.kt (background)
 ```
 
@@ -96,8 +96,6 @@ User → Compose (MainActivity.kt:127 KaiScreen)
 env -u LS_COLORS -u OPENCODE -u OPENCODE_PID -u OPENCODE_CONFIG_CONTENT -u OPENROUTER_API_KEY \
   cargo ndk -t arm64-v8a -t x86_64 -p 26 build --release  # → app/src/main/jniLibs/
 
-# 2. Firebase (for real email — replace placeholder)
-# Firebase Console → Add project kai-android → Add Android com.axiom.kai + SHA1 EE:A9:BE:6F:... + SHA256 3E:16:FA:... → download google-services.json → replace app/google-services.json → Enable Auth → Email/Password + Google
 
 # 3. Signing (already has kai-upload.jks)
 cat keystore.properties # storeFile=kai-upload.jks storePassword=kaiKai123 keyAlias=kai-upload
@@ -126,11 +124,10 @@ kai-android/
         ModelManager.kt (Catalog ★ 3B, Router FAST_TAG llm3.2:3b, delete)
         MemoryDb.kt/KnowledgeDb.kt (128→768 transpose), Skills.kt, AgentLoop.kt
         Tools.kt (14 tools + tryToolFromModel + toolsPrompt), Soul.kt, Lang.kt
-        AccountManager.kt (local+Firebase), GoogleAuthManager.kt, FirebaseHelper.kt
-        BillingManager.kt (PRO $4.99), KaiPcClient.kt (TLS+token, /send-email)
+        BillingManager.kt (PRO $4.99), KaiPcClient.kt (TLS+token)
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 36, versionCode 7, Firebase BoM 32.7.4, Billing 8.3.0, Room 2.6.1)
+    build.gradle.kts (compileSdk 36, versionCode 8, Billing 8.3.0, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
   app/google-services.json (placeholder → real kai-android-c291c)
   kai-upload.jks + keystore.properties
@@ -142,7 +139,7 @@ kai-android/
 
 ## Usage
 
-See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, tools, account, Pro, Kai PC, troubleshooting).
+See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, tools, Pro, Kai PC, troubleshooting).
 
 ---
 
@@ -150,7 +147,7 @@ See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, to
 
 - **Privacy Policy:** `PRIVACY_POLICY.md` — host as `https://n4rus.github.io/kai-android/privacy.html` for Play Console
 - **Store Listing:** `STORE_LISTING.md` — short/full EN/PT, data safety, graphics (512 icon, 1024×500 feature, screenshots), content rating
-- **Data Safety:** Email optional, encrypted in transit/at rest, no sharing except Firebase Auth when configured
+- **Data Safety:** No data collected, no data shared — no account, no analytics, no ads
 - **Encryption:** `STANDARD` exempt (`AES/CBC`, `PBKDF2`, `TLS`)
 
 ---
@@ -163,7 +160,7 @@ See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, to
 
 **Background?** `KaiForegroundService` keeps CPU + notification while thinking, survives lock/switch (don't swipe-kill). `POST_NOTIFICATIONS` granted.
 
-**PC SMTP vs Firebase?** Dev: `tools/kai_pc_server.py --smtp-*` → `KaiPcClient.sendEmail`. Prod: Firebase `sendEmailVerification`/`sendPasswordResetEmail` when `google-services.json` real.
+**Accounts?** None. Kai has no sign-up/login/email; everything is local. No Firebase, no backend.
 
 ---
 

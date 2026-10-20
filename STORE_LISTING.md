@@ -1,4 +1,4 @@
-# Store Listing — Kai (com.axiom.kai)
+# Store Listing — Kai (com.axiom.kai) — Vanilla 1
 
 ## App identity
 
@@ -7,22 +7,24 @@
 - **Contact email:** lucasejs@live.com
 - **Website (optional):** https://github.com/n4rus/kai-android
 - **Privacy policy URL:** https://n4rus.github.io/kai-android/privacy.html
-- **Ads:** **No** — Kai contains no advertising SDK
+- **Ads:** **No** — no advertising SDK
+- **Accounts:** **No** — no sign-up, no login, no email
 - **In-app purchases:** Yes — `kai_pro`, one-time $4.99 (optional)
 
 ## Short description (80 chars max)
 
-Offline AI — runs on your phone, private, no ads, no monthly fee.
+Offline AI — runs on your phone. No account, no ads, no cloud.
 
 ## Full description (EN, 4000 chars max)
 
-Kai — your offline AI companion. Runs on your phone. No cloud required.
+Kai — your offline AI companion. Runs on your phone. No account, no cloud.
 
 **Private by design**
+- No sign-up, no login, no email address. Open the app and chat
 - On-device inference with llama.cpp + Vulkan (n_gpu_layers=99) on supported GPUs
-- Chat history optionally encrypted with your password (PBKDF2 + AES/CBC)
-- No ads, no analytics, no trackers. Your data never leaves your phone unless you export it
-- Optional email account sign-in (Firebase) or use it completely anonymously
+- No ads, no analytics, no trackers, no crash reporting
+- Your chats never leave your phone unless you export them yourself
+- Android cloud backup disabled — app data stays on the device
 
 **Smart & local**
 - Recommended 3B model (llama3.2:3b) — fast and reliable on modern phones
@@ -42,7 +44,7 @@ Kai — your offline AI companion. Runs on your phone. No cloud required.
 
 **Made for offline**
 - Works in airplane mode with a downloaded model
-- No account required to chat
+- No account required
 - Models download from Hugging Face / GitHub when you choose
 
 Kai is built by a solo developer in Brazil.
@@ -51,11 +53,10 @@ Kai is built by a solo developer in Brazil.
 
 ## PT-BR (opcional, para o listing em português)
 
-Kai — sua IA offline. Roda no seu celular, sem nuvem obrigatória.
+Kai — sua IA offline. Roda no seu celular, sem conta e sem nuvem obrigatória.
 
 - Inferência local com llama.cpp + Vulkan
-- Histórico criptografado com senha
-- Sem anúncios, sem analytics; seus dados ficam no aparelho
+- Sem conta, sem anúncios, sem analytics; seus dados ficam no aparelho
 - Modelo 3B recomendado, roda até em aparelhos modestos
 - Memória persistente, ferramentas e agente com múltiplos passos
 - Geração continua com a tela bloqueada
@@ -64,18 +65,18 @@ Kai — sua IA offline. Roda no seu celular, sem nuvem obrigatória.
 
 ## Data Safety (Play Console answers)
 
-Collect / share: **Yes** — optional account only.
+**No data collected, no data shared.**
 
-| Data type | Collected | Shared | Purpose | Optional | Encrypted in transit | Deletable |
-|---|---|---|---|---|---|---|
-| Email address | Yes | No (Firebase Auth is a processor) | Account management | Yes | Yes | Yes, in-app |
-| Name (Google Sign-In display name) | Yes | No | Account management | Yes | Yes | Yes, in-app |
-| Chat messages, memories, files | **No** — local only | No | — | — | At rest if password set | Uninstall / in-app delete |
-
-- Data encrypted in transit: **Yes**
-- Data deletion request: **Yes** (in-app Account → Delete; uninstall removes local data)
+- Data collection: **No**
+- Data sharing: **No**
+- Account creation: **No**
+- Ads: **No**
+- Analytics: **No**
+- Data encrypted in transit: **N/A** (no data leaves the app; optional user-configured LAN/API calls use HTTPS/TLS)
+- Data deletion request: **N/A** — user deletes chats in-app or uninstalls; the developer holds no data
 - Independent security review: No
-- **No advertising ID, no device identifiers, no analytics collected**
+
+Optional user-initiated features (not developer collection): Kai PC bridge sends prompts to the user's own PC on LAN; adding a third-party API key sends prompts directly to that provider under the user's account.
 
 ## Content rating questionnaire
 
@@ -103,7 +104,7 @@ Collect / share: **Yes** — optional account only.
 
 ## Release track plan
 
-1. Internal testing (upload AAB, add `lucasejs@live.com`, install from Play link)
-2. Verify purchase + restore on A36 (RQGYC026B0T)
+1. Internal testing (upload AAB `1.1.0-vanilla1` / 8, add `lucasejs@live.com`, install from Play link)
+2. Verify chat + Pro purchase/restore on A36 (RQGYC026B0T)
 3. Closed testing if Play requires it for new personal accounts (12 testers / 14 days)
 4. Production rollout 20% → 50% → 100%

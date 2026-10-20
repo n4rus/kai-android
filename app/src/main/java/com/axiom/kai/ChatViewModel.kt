@@ -13,8 +13,8 @@ data class SearchHit(val chatId: String, val chatTitle: String, val msgId: Strin
     val role: String, val text: String, val ts: Long)
 
 class ChatViewModel : ViewModel() {
-    private fun encText(t:String)= if (AccountManager.isEncryptedMode()) AccountManager.encrypt(t) else t
-    private fun decText(t:String)= AccountManager.decrypt(t)
+    private fun encText(t:String)= t
+    private fun decText(t:String)= t
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -531,10 +531,10 @@ class ChatViewModel : ViewModel() {
                     _isVFEFastPath = false
                     return@launch
                 }
-                // Gemini remote models — after Google login, free
+                // Gemini remote models — free API key, no account
                 if (curModel.startsWith("gemini:")) {
                     if (!GeminiClient.isLoggedIn(ctx)) {
-                        val msg = "⚠ Please sign in with Google first to use Gemini.\nTap ✦ → Sign in with Google, then paste your free API key from aistudio.google.com → Gemini models unlock."
+                        val msg = "⚠ Add a free Gemini API key first.\nTap ✦ → API Keys, paste a key from aistudio.google.com → Gemini models unlock."
                         val m = ChatMessage(role = Role.KAI, text = msg, model = curModel, vfe = 1f, curvature = 0.2f, temp = 0.7f)
                         _messages.value = _messages.value + m
                         db.messageDao().insert(MessageEntity(id = m.id, chatId = currentChatId, role = "KAI", text = encText(msg), vfe = 1f, curvature = 0.2f, temp = 0.7f, model = curModel, ts = System.currentTimeMillis()))

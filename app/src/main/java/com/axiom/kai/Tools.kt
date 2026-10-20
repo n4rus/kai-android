@@ -443,7 +443,7 @@ object Tools {
                 "- apps: \"/apps [filtro]\" lista, \"/openapp <nome>\" abre, \"/url <url>\" abre navegador\n" +
                 "- alarmes: \"/alarm HH:MM etiqueta\", calendário: \"/event Título @ yyyy-MM-dd HH:mm\"\n" +
                 "- aparelho: \"/battery\", \"/note <texto>\"\n" +
-                "- conta e criptografia (⚙️ → 🔐), exportar (⚙️ → 💾), Kai PC (⚙️ → 🖥️)\n" +
+                "- exportar conversas (⚙️ → 💾), Kai PC (⚙️ → 🖥️)\n" +
                 "Para atingir um objetivo, emita UMA linha de ferramenta por turno (ex. /search clima hoje). O sistema executará e retornará resultados; então continue sua resposta usando-os.\n" +
                 "VFE/tau são conceitos de física, não ferramentas — explique VFE=surpresa+KL e tau como T' diretamente quando perguntado.\n" +
                 "Workspace: ${ws.absolutePath}. [/Tools]\n\n"
@@ -458,7 +458,7 @@ object Tools {
                 "- apps: \"/apps [filter]\" list, \"/openapp <name>\" launch, \"/url <url>\" open browser\n" +
                 "- alarms: \"/alarm HH:MM label\", calendar: \"/event Title @ yyyy-MM-dd HH:mm\"\n" +
                 "- device: \"/battery\", \"/note <text>\"\n" +
-                "- account & encryption (⚙️ → 🔐), export chats (⚙️ → 💾), Kai PC (⚙️ → 🖥️)\n" +
+                "- export chats (⚙️ → 💾), Kai PC (⚙️ → 🖥️)\n" +
                 "To achieve a goal, output ONE tool line per turn (e.g. /search weather today). System will execute it and return results; then continue your answer using those results.\n" +
                 "VFE/tau are physics concepts, not tools — explain VFE=surprise+KL and tau as T' directly when asked.\n" +
                 "Workspace: ${ws.absolutePath}. [/Tools]\n\n"
