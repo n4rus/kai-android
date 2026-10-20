@@ -1,67 +1,109 @@
-# Store Listing — Kai
+# Store Listing — Kai (com.axiom.kai)
+
+## App identity
+
+- **App name (30 chars max):** `Kai — Offline AI`
+- **Category:** Tools (secondary: Productivity)
+- **Contact email:** lucasejs@live.com
+- **Website (optional):** https://github.com/n4rus/kai-android
+- **Privacy policy URL:** https://n4rus.github.io/kai-android/privacy.html
+- **Ads:** **No** — Kai contains no advertising SDK
+- **In-app purchases:** Yes — `kai_pro`, one-time $4.99 (optional)
 
 ## Short description (80 chars max)
-Offline AI — private, local 3B model, encrypted history, no cloud.
 
-## Full description (EN, ~2000 chars)
+Offline AI — runs on your phone, private, no ads, no monthly fee.
 
-Kai — Your offline AI companion. No cloud, no monthly fees.
+## Full description (EN, 4000 chars max)
 
-**Private by design:**
-- Runs 100% on-device (llama.cpp + Vulkan `n_gpu_layers=99`, dual slots, 75s timeout + cancel)
-- Chat history encrypted with your password (PBKDF2 AES/CBC)
-- No analytics, no ads. Your data never leaves your phone unless you tap Export.
+Kai — your offline AI companion. Runs on your phone. No cloud required.
 
-**Smart & local:**
-- Default ★ Recommended 3B (llama3.2:3b) — fast, reliable. 0.5B too dumb, 7B too slow — 3B is the sweet spot. Also coder:3b and gemma2:2b.
-- VFE / tau physics: curiosity-aware temperature `T' = T×(1+α·g)` — Kai explores when surprised, consolidates when confident.
-- Persistent memory, knowledge base, skills, agent loop (write → shell → fix), tools: /pdf /browse /search /img /ls /battery
+**Private by design**
+- On-device inference with llama.cpp + Vulkan (n_gpu_layers=99) on supported GPUs
+- Chat history optionally encrypted with your password (PBKDF2 + AES/CBC)
+- No ads, no analytics, no trackers. Your data never leaves your phone unless you export it
+- Optional email account sign-in (Firebase) or use it completely anonymously
 
-**One-time $4.99, free all models:**
-- v1: all models free. v2/v3: one-time $4.99 unlocks programs, all models stay free (Billing 6.1.0 managed product, not subscription).
+**Smart & local**
+- Recommended 3B model (llama3.2:3b) — fast and reliable on modern phones
+- Also supports qwen2.5-coder:3b (code), gemma2:2b (small), qwen2.5:0.5b (low RAM)
+- VFE / tau physics: curiosity-aware temperature — Kai explores when surprised and consolidates when confident
+- Persistent memory, knowledge base, skills, and a multi-step agent loop
+- Tools: /search /browse /pdf /ls /battery and more (enabled per tool)
+- Background generation keeps running when the screen is locked (Android 8+)
+- Kai PC bridge (optional): pair with your desktop over TLS so Kai can see local files
 
-**Kai PC live (optional):**
-- Pair with your PC (`python3 tools/kai_pc_server.py`) for desktop context via TLS + token, or use 100% offline.
+**Free and open source**
+- Free: all core chat, local models, memory, and tools
+- No ads, ever
+- Optional Kai Pro (one-time $4.99): early-access experimental models and a direct way to support a solo developer. No subscription, no recurring charge
+- Purchase is tied to your Google account and can be restored on any device
+- Source code (MIT): https://github.com/n4rus/kai-android
 
-Free, offline, yours.
+**Made for offline**
+- Works in airplane mode with a downloaded model
+- No account required to chat
+- Models download from Hugging Face / GitHub when you choose
+
+Kai is built by a solo developer in Brazil.
 
 ---
-PT:
 
-Kai — Sua IA offline. Sem nuvem, sem mensalidade.
+## PT-BR (opcional, para o listing em português)
 
-Privada por design: 100% no aparelho (llama.cpp + Vulkan), histórico criptografado com senha.
+Kai — sua IA offline. Roda no seu celular, sem nuvem obrigatória.
 
-3B ★ Recomendado (llama3.2:3b) — rápido e confiável. VFE/tau: temperatura curiosa `T'`.
+- Inferência local com llama.cpp + Vulkan
+- Histórico criptografado com senha
+- Sem anúncios, sem analytics; seus dados ficam no aparelho
+- Modelo 3B recomendado, roda até em aparelhos modestos
+- Memória persistente, ferramentas e agente com múltiplos passos
+- Geração continua com a tela bloqueada
+- Grátis e sem anúncios; Kai Pro opcional $4.99 único (modelos experimentais + apoio ao dev)
+- Código aberto (MIT): github.com/n4rus/kai-android
 
-$4.99 único, todos os modelos gratuitos (v2/v3).
+## Data Safety (Play Console answers)
 
-## Data Safety (Play Console)
+Collect / share: **Yes** — optional account only.
 
-- Data collection: Email (account, optional) — collected, encrypted in transit, user can delete via In-app Delete. No other data collected.
-- Data sharing: No data shared with third parties (Firebase Auth only if you enable it — declare it then).
-- Security: Data encrypted in transit (TLS), data encrypted at rest (AES).
-- No location, no contacts, no analytics.
+| Data type | Collected | Shared | Purpose | Optional | Encrypted in transit | Deletable |
+|---|---|---|---|---|---|---|
+| Email address | Yes | No (Firebase Auth is a processor) | Account management | Yes | Yes | Yes, in-app |
+| Name (Google Sign-In display name) | Yes | No | Account management | Yes | Yes | Yes, in-app |
+| Chat messages, memories, files | **No** — local only | No | — | — | At rest if password set | Uninstall / in-app delete |
 
-## Content rating
+- Data encrypted in transit: **Yes**
+- Data deletion request: **Yes** (in-app Account → Delete; uninstall removes local data)
+- Independent security review: No
+- **No advertising ID, no device identifiers, no analytics collected**
 
-Questionnaire: No violence, no sexual content, no profanity by default (LLM may generate — select "User-generated content"). Target: Everyone.
+## Content rating questionnaire
 
-## Encryption declaration
-
-Export compliance: uses standard AES/CBC, PBKDF2, TLS — exempt (standard cryptography). Answer "Yes, exempt."
-
-## Graphics needed
-
-- Icon: 512x512 (use mipmap/ic_launcher, export PNG, no alpha)
-- Feature graphic: 1024x500 (dark #0B1026 bg, “Kai — Offline AI” text, no transparency)
-- Screenshots: at least 2 phone (16:9 or 9:16, e.g., 1080x1920) — Chat + VFE + Themes. 1 tablet 7" if possible. 1 Wear/ChromeOS optional.
-- Privacy policy URL: host PRIVACY_POLICY.md as https://.../privacy.html
+- Violence: No (user-generated AI text may contain any topic)
+- Sexuality: No
+- Profanity: No
+- Controlled substances: No
+- User-generated content: **Yes** (AI chat)
+- User interaction / sharing: No public sharing
+- Ads present: **No**
+- Target audience: 13+ (LLM may produce mature text; no child-directed design)
 
 ## Pricing
 
-- Free app with one managed in-app product: `kai_v2_v3` $4.99 one-time, type Managed product, not subscription.
+- App: Free
+- Managed product ID: **`kai_pro`** — $4.99, one-time, non-consumable
+- Legacy IDs `kai_v2_30d`, `kai_v2_90d`, `kai_v3_30d`, `kai_v3_90d` remain recognized for restore only — do not create them as active products
 
-## Track
+## Graphics
 
-- Internal testing → Closed → Production. Start with Internal (your A36 RQGYC026B0T).
+- **App icon 512x512:** `play-icon-512.png` (generated from `kai_logo_earth.png`)
+- **Feature graphic 1024x500, no alpha:** `feature-graphic-1024x500.png` (generated from `kai_background.png`)
+- **Screenshots:** at least 2 phone screenshots (9:16, 1080x1920 recommended)
+- 7" tablet screenshot (optional, improves ranking)
+
+## Release track plan
+
+1. Internal testing (upload AAB, add `lucasejs@live.com`, install from Play link)
+2. Verify purchase + restore on A36 (RQGYC026B0T)
+3. Closed testing if Play requires it for new personal accounts (12 testers / 14 days)
+4. Production rollout 20% → 50% → 100%

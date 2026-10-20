@@ -30,6 +30,7 @@ object KaiBridge {
     external fun slotInfo(slot: Int): String
     external fun generate(prompt: String, temp: Float, vfe: Float): String
     external fun generateChat(historyJson: String, temp: Float, vfe: Float, slot: Int): String
+    external fun cancel(slot: Int)
 
     // Kotlin fallback when JNI not yet linked (gradle stub build)
     fun calculateVFEFallback(s: Float, k: Float) = s + k

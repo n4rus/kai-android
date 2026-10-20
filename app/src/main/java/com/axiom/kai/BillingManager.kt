@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.android.billingclient.api.*
 
-// Pro one-time $4.99 (remove ads + early releases), legacy v2/v3 kept for restore
+// Pro one-time $4.99 (early releases + support development), legacy v2/v3 kept for restore
 object BillingSkus {
-    const val PRO = "kai_pro" // $4.99 one-time — remove ads + early access
+    const val PRO = "kai_pro" // $4.99 one-time — early access + support development
     const val V2_30D = "kai_v2_30d" // legacy $4.99 30 days
     const val V2_90D = "kai_v2_90d" // legacy $12.99 90 days
     const val V3_30D = "kai_v3_30d" // legacy $4.99 when v3 ships

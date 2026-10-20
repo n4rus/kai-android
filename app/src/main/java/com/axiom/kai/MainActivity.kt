@@ -29,12 +29,6 @@ import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
-import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.MobileAds
-import kotlinx.coroutines.delay
 import com.axiom.kai.ui.theme.KaiTheme
 import com.axiom.kai.ui.theme.getThemeMode
 import com.axiom.kai.ui.theme.setThemeMode
@@ -94,31 +88,6 @@ private fun suggestionsFor(ctx: Context): List<String> = if (Lang.isPt(ctx)) lis
     "What is the free energy principle?",
     "Summarize this topic for a beginner"
 )
-
-@Composable
-fun AdStripe() {
-    val ctx = LocalContext.current
-    val isPro = remember { BillingManager(ctx).hasPro() }
-    if (isPro) return
-    var visible by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        try { MobileAds.initialize(ctx) } catch (_: Throwable) {}
-        delay(5000)
-        visible = false
-    }
-    if (!visible) return
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 8.dp),
-        factory = { c ->
-            AdView(c).apply {
-                setAdSize(AdSize.BANNER)
-                // Test banner — replace with real ca-app-pub-.../6300978111 before release
-                adUnitId = "ca-app-pub-3940256099942544/6300978111"
-                loadAd(AdRequest.Builder().build())
-            }
-        }
-    )
-}
 
 @Composable
 fun ChatInputBar(
@@ -498,7 +467,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                   )
                               }
                              DropdownMenuItem(
-                                 text = { Text(if (BillingManager(ctx).hasPro()) "Kai Pro ✓ — Ads removed + early releases" else "Get Kai Pro — $4.99 one-time (remove ads + early access)") },
+                                 text = { Text(if (BillingManager(ctx).hasPro()) "Kai Pro ✓ — early releases + dev support" else "Kai Pro — $4.99 one-time (early access + support development)") },
                                  onClick = {
                                      try {
                                          BillingManager(ctx).connect {
@@ -581,9 +550,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     color = MaterialTheme.colorScheme.primary)
             }
-
-            // Ad stripe — free tier only, 5s auto-hide, between tabs/VFE and chat
-            AdStripe()
 
             // Chat list — opens at the LATEST message (no scrolling back through history)
             val listState = rememberLazyListState()

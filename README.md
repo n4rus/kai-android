@@ -55,11 +55,11 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 - `deleteAccount` `AccountManager.kt:213` with confirmation dialog `MainActivity.kt:615`
 - `login` + `Google Sign-In` button `MainActivity.kt:831` `OutlinedButton G #4285F4`
 
-### Billing & Ads
+### Billing
 - `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (non-consumable, `hasPro`) + legacy `v2/v3 30/90d` also grant pro
 - `ModelManager.kt:11` `requiresPro` (`axiom:3b`, `nomic` early) — picker `MainActivity.kt:476` locks for free
-- `AdStripe` `MainActivity.kt:99` `AdMob 23.0.0` `ca-app-pub-394...~3347` test banner `6300978111` `50dp` between `VFE` and chat, `5s` `delay` auto-hide, `hasPro` skip, `MobileAds.initialize`
-- Free: all `3B` free, Pro removes ads + early releases
+- Free: all core chat + `3B` models. Pro (one-time) unlocks early-access models and supports development
+- No ads, no AdMob SDK, no analytics
 
 ### Background Continuation
 - `KaiForegroundService.kt:1` `FOREGROUND_SERVICE_DATA_SYNC` + `PARTIAL_WAKE_LOCK 10min`, `NotificationChannel kai_generation`, `Start` on `_isGenerating=true` `ChatViewModel.kt:393` `startBg`, `Stop` on `false`, `POST_NOTIFICATIONS` request `MainActivity.kt:204`, survives lock/app switch (don't swipe-kill)
@@ -68,7 +68,7 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 - `Kai` label `strings.xml:3` `AndroidManifest.xml:10`, `Theme.Kai.DarkLaunch` `themes.xml` `windowBackground #FF000000`
 - `KaiTheme` `ui/theme/Theme.kt:13` `Dark NearlyBlack #141414` + `Light`, `ThemeVersion` live
 - `Lang.kt:1` `en/pt` `version`, `ChatViewModel` bilingual direct `VFE` fast-path `ChatViewModel.kt:498` `Regex \bvfe\b|\btau\b`
-- `MainActivity.kt:629` `ChatInputBar` isolated, `LazyColumn` `rememberLazyListState` scroll to last, `SelectionContainer`, `Top tabs` `Chat/Terminal`, `History ☰`, `Model picker`, `Download progress`, `AdStripe`
+- `MainActivity.kt:629` `ChatInputBar` isolated, `LazyColumn` `rememberLazyListState` scroll to last, `SelectionContainer`, `Top tabs` `Chat/Terminal`, `History ☰`, `Model picker`, `Download progress`
 
 ---
 
@@ -118,9 +118,9 @@ adb -s RQGYC026B0T install -r app/build/outputs/apk/debug/app-debug.apk
 kai-android/
   app/
     src/main/
-      AndroidManifest.xml (Kai, DarkLaunch, AdMob, POST_NOTIFICATIONS, ForegroundService)
+      AndroidManifest.xml (Kai, DarkLaunch, POST_NOTIFICATIONS, ForegroundService)
       java/com/axiom/kai/
-        MainActivity.kt (ChatInputBar, AdStripe, KaiScreen, physics, picker)
+        MainActivity.kt (ChatInputBar, KaiScreen, physics, picker)
         ChatViewModel.kt (send, VFE fast-path, streaming, agent, persistence)
         KaiBridge.kt (JNI), StreamingGenerate.kt, KaiForegroundService.kt
         ModelManager.kt (Catalog ★ 3B, Router FAST_TAG llm3.2:3b, delete)
@@ -130,7 +130,7 @@ kai-android/
         BillingManager.kt (PRO $4.99), KaiPcClient.kt (TLS+token, /send-email)
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 34, versionCode 5, Firebase BoM 32.7.4, Billing 6.1.0, Ads 23.0.0, Room 2.6.1)
+    build.gradle.kts (compileSdk 34, versionCode 6, Firebase BoM 32.7.4, Billing 6.1.0, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
   app/google-services.json (placeholder → real kai-android-c291c)
   kai-upload.jks + keystore.properties
@@ -159,7 +159,7 @@ See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, to
 
 **Why 3B default?** `0.5B` too dumb, `7B` too slow on `A36` (`120s` → `30s` with `1024/192`). `3B Q4_K_M` is sweet spot (`ModelManager.kt:48`).
 
-**Ads?** Free shows `50dp` banner `5s` then hides (`AdStripe`), Pro one-time `$4.99` removes + early `axiom:3b/nomic`.
+**Ads?** None. Kai ships with no advertising SDK. Pro `$4.99` one-time (optional) unlocks early-access models (`axiom:3b`, `nomic`) and supports development.
 
 **Background?** `KaiForegroundService` keeps CPU + notification while thinking, survives lock/switch (don't swipe-kill). `POST_NOTIFICATIONS` granted.
 

@@ -25,7 +25,7 @@ First launch: black `Theme.Kai.DarkLaunch` → `Max` memory auto-migration (`MIG
 
 1. **Permissions:** Allow `Notifications` when prompted (keeps "Kai is thinking…" when locked).
 2. **Model:** Top `model` chip → picker shows `★ Recommended` (`llama3.2:3b`, `coder:3b`, `gemma2:2b`) — `0.5B` is `FAST_TAG` but too dumb, `7B` is slow. Free tier has `3B` free; Pro early `axiom:3b` + `nomic-embed`. Tap `⬇` to download (via `DownloadManager` `1.9G`, resume via `.part`, `syncExternalToInternal`, `loadInRust`).
-3. **Ad stripe (free):** `50dp` banner between `VFE` and chat, `5s` then auto-hides, `Pro` skips. `AdMob` test `ca-app-pub-394...Σ3347` `6300978111` — will use real before release.
+3. **No ads:** Kai ships without any advertising SDK. No AdMob, no analytics.
 4. **Try:** Suggestions `Hi, I'm Kai` → tap one or type + `Send`. `VFE` meter shows `surprise+KL` + `g→T'`.
 
 ---
@@ -101,7 +101,7 @@ Kai is **tool-aware** `Tools.kt:407` `FUNCTION CALLING` — `YOU CAN CALL THEM Y
 
 ## 7. Billing — Pro
 
-**Pro** `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (`non-consumable`, `hasPro`) + legacy `v2/v3 30/90d` also grant pro. Picker `MainActivity.kt:476` if `requiresPro` (`axiom:3b`, `nomic`) and `!hasPro` → `🔒 Pro early access` toast. `Get Kai Pro — $4.99 one-time (remove ads + early access)` `MainActivity.kt:488` `launchPurchase(PRO)`, `AdStripe` skips when `hasPro`.
+**Pro** `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (`non-consumable`, `hasPro`) + legacy `v2/v3 30/90d` also grant pro. Picker `MainActivity.kt:476` if `requiresPro` (`axiom:3b`, `nomic`) and `!hasPro` → `🔒 Pro early access` toast. `Kai Pro — $4.99 one-time (early access + support development)` `MainActivity.kt:464` `launchPurchase(PRO)`. Pro is optional: early models + supporting a solo dev; no ads are shown to anyone.
 
 **Play Console:** Create `Managed product` `kai_pro` `$4.99` `one-time`, not subscription. `Billing 6.1.0`.
 
@@ -144,7 +144,7 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 | `Recovery email not found` | use `recoveryEmail` or `email`, check `kai_accounts.xml` via `run-as cat shared_prefs/kai_accounts.xml` |
 | `no GGUF — picker` | `.part` stale `cleanStaleDownloads` `ChatViewModel.kt:50`, resume via `directFallback` |
 
-**Logs:** `adb -s RQGYC026B0T shell logcat -d | grep -E "KaiBridge|ChatViewModel|AccountManager|Billing|AdMob"`
+**Logs:** `adb -s RQGYC026B0T shell logcat -d | grep -E "KaiBridge|ChatViewModel|AccountManager|Billing"`
 
 **DB headless:** `adb shell run-as com.axiom.kai cat databases/kai.db` + `sqlite3` `select role,substr(text,1,60),model from messages`
 
@@ -158,6 +158,6 @@ See `PRIVACY_POLICY.md` — offline-first, `kai.db` local + `AES`, `Firebase` on
 
 ## 12. Versions
 
-`1.0.2-bg-service` `v5` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 34` `Firebase BoM 32.7.4` `Billing 6.1.0` `Ads 23.0.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 26.1` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.0.3` `v6` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 34` `Firebase BoM 32.7.4` `Billing 6.1.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 26.1` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`

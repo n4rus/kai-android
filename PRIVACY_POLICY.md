@@ -1,6 +1,6 @@
 # Privacy Policy — Kai — Offline AI Companion
 
-**Effective Date: Aug 29, 2026**
+**Effective Date: Oct 19, 2026**
 **Package: com.axiom.kai**
 
 Kai is **offline-first**. Your privacy is the core feature.
@@ -17,12 +17,14 @@ Kai is **offline-first**. Your privacy is the core feature.
 - Optional export to `/Download/kai_*.json` is user-initiated only.
 
 ### 1.3 Device / Diagnostics
-- No analytics, no advertising SDK. No data shared with third parties.
+- No analytics SDK, no crash reporting SDK, **no advertising SDK**. No data shared with third parties.
 - Model downloads use GitHub/Hugging Face URLs via Android DownloadManager — your IP is visible to those hosts per their policies.
 
 ## 2. Permissions
 
 - `INTERNET`, `ACCESS_NETWORK_STATE`: model download, Kai PC live bridge (LAN only, TLS + Bearer token), Firebase Auth (if configured), Gemini/Billing if you enable them.
+- `POST_NOTIFICATIONS` (Android 13+): background generation progress notification.
+- `FOREGROUND_SERVICE`, `WAKE_LOCK`: keep generation running while the screen is off.
 - `WRITE_EXTERNAL_STORAGE` (maxSdk 28): legacy export to Download on Android 9 and below.
 - No `READ_CONTACTS`, `LOCATION`, `MICROPHONE` (mic only if you grant for voice input — audio stays on device).
 
@@ -30,8 +32,10 @@ Kai is **offline-first**. Your privacy is the core feature.
 
 - Firebase Authentication (optional, only when `google-services.json` is real): email verification and password reset. https://firebase.google.com/support/privacy
 - Google Sign-In: https://policies.google.com/privacy
-- Play Billing 6.1.0: `v2`/`v3` $4.99 one-time in-app product (no subscription).
+- Google Play Billing 6.1.0: `kai_pro` $4.99 one-time in-app product (no subscription).
 - Hugging Face / GitHub for model files.
+
+No advertising networks, no analytics providers, no data brokers.
 
 ## 4. Data Retention & Deletion
 
@@ -49,6 +53,6 @@ Not directed to children under 13. No age gate, but no data collected from child
 
 ## 7. Contact
 
-AxiomTree — com.axiom.kai — https://github.com/n4rus/kai-android
+Lucas Eduardo Jaguszewski da Silva (n4rus) — com.axiom.kai — https://github.com/n4rus/kai-android — lucasejs@live.com
 
 Host this file at `https://n4rus.github.io/kai-android/privacy.html` or your domain and paste URL into Play Console → Store settings → Privacy policy.
