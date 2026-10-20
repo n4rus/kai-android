@@ -16,13 +16,13 @@ kapt {
 
 android {
     namespace = "com.axiom.kai"
-    compileSdk = 34
+    compileSdk = 36
 
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "28.2.13676358"
     defaultConfig {
         applicationId = "com.axiom.kai"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 6
         versionName = "1.0.3"
 
@@ -33,7 +33,7 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
-                arguments += listOf("-DANDROID_STL=c++_shared")
+                arguments += listOf("-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
             }
         }
     }

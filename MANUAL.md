@@ -158,6 +158,6 @@ See `PRIVACY_POLICY.md` — offline-first, `kai.db` local + `AES`, `Firebase` on
 
 ## 12. Versions
 
-`1.0.3` `v6` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 34` `Firebase BoM 32.7.4` `Billing 6.1.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 26.1` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.0.3` `v6` `AAB 28M` `APK 27M` `minSdk 26` `targetSdk 36` `Firebase BoM 32.7.4` `Billing 6.1.0` `Room 2.6.1` `pdfbox 2.0.27.0` `play-services-auth 20.7.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`

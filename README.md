@@ -9,7 +9,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin)](app/src/main/java/com/axiom/kai/)
 [![Play Store](https://img.shields.io/badge/Play_Store-1.0.2--bg--service-41454A?logo=googleplay)](STORE_LISTING.md)
 
-**Package:** `com.axiom.kai` • **Current:** `1.0.2-bg-service` (`versionCode 5`) • **AAB 28M** • **Min SDK 26** • **NDK 26.1** • **Compose Material3**
+**Package:** `com.axiom.kai` • **Current:** `1.0.2-bg-service` (`versionCode 5`) • **AAB 28M** • **Min SDK 26** • **NDK 28.2** • **Compose Material3**
 
 This is the **clean public repo** for the Android app. The parent `axiom_horizon` (40GB history) stays private until store-ready.
 
@@ -89,7 +89,7 @@ User → Compose (MainActivity.kt:127 KaiScreen)
 
 ## Build (Linux)
 
-**Prereqs:** `Android Studio` + `NDK 26.1` + `CMake 3.22.1` + `Rust stable` + `cargo-ndk`
+**Prereqs:** `Android Studio` + `NDK 28.2` + `CMake 3.22.1` + `Rust stable` + `cargo-ndk`
 
 ```bash
 # 1. Rust (outside opencode env — unset OPENCODE_* to avoid cargo-ndk panic)
@@ -130,7 +130,7 @@ kai-android/
         BillingManager.kt (PRO $4.99), KaiPcClient.kt (TLS+token, /send-email)
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 34, versionCode 6, Firebase BoM 32.7.4, Billing 6.1.0, Room 2.6.1)
+    build.gradle.kts (compileSdk 36, versionCode 6, Firebase BoM 32.7.4, Billing 6.1.0, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
   app/google-services.json (placeholder → real kai-android-c291c)
   kai-upload.jks + keystore.properties
