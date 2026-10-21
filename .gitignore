@@ -25,3 +25,5 @@ Thumbs.db
 keystore.properties
 kai-upload.jks
 app/src/main/jniLibs/
+
+google-services.json
