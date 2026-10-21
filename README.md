@@ -122,7 +122,7 @@ kai-android/
         Tools.kt (14 tools + tryToolFromModel + toolsPrompt), Soul.kt, Lang.kt
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 36, versionCode 12, Room 2.6.1)
+    build.gradle.kts (compileSdk 36, versionCode 13, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
   kai-upload.jks + keystore.properties
   PRIVACY_POLICY.md / STORE_LISTING.md / MANUAL.md (this repo)

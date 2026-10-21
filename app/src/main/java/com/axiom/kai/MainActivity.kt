@@ -138,7 +138,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var pickerExpanded by remember { mutableStateOf(false) }
     var historyExpanded by remember { mutableStateOf(false) }
     var configExpanded by remember { mutableStateOf(false) }
-    var showPhysics by remember { mutableStateOf(ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).getBoolean("show_physics", true)) } // VFE/tau active by default, persisted
+    var showPhysics by remember { mutableStateOf(ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).getBoolean("show_physics_v2", false)) } // hidden by default, persisted
     var vfeCollapsed by remember { mutableStateOf(false) } // tap to hide — only hides, does not turn off
     var showGeminiSettings by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
@@ -238,7 +238,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     Text(Lang.t(ctx, "VFE / Curvature — ${if (showPhysics) "ON" else "OFF"}", "VFE / Curvatura — ${if (showPhysics) "ATIVADO" else "DESATIVADO"}"),
                                         style = MaterialTheme.typography.bodyMedium)
                                 }},
-                                onClick = { val n = !showPhysics; showPhysics = n; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics", n).apply(); configExpanded = false }
+                                onClick = { val n = !showPhysics; showPhysics = n; ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).edit().putBoolean("show_physics_v2", n).apply(); configExpanded = false }
                             )
                             DropdownMenuItem(
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) {
@@ -420,7 +420,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                 if (vfeCollapsed) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.Center) {
                         TextButton(onClick = { vfeCollapsed = false }) {
-                            Text(Lang.t(ctx,"👁 Show VFE / Curvature","👁 Mostrar VFE / Curvatura"), style = MaterialTheme.typography.labelSmall)
+                            Text(Lang.t(ctx,"Show VFE / Curvature","Mostrar VFE / Curvatura"), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 } else {

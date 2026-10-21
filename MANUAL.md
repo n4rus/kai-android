@@ -138,6 +138,6 @@ See `PRIVACY_POLICY.md` — no account, no data collected/shared, `kai.db` local
 
 ## 10. Versions
 
-`1.1.0-vanilla5` `v12` `AAB 24M` `APK 20M` `minSdk 26` `targetSdk 36` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.1.0-vanilla6` `v13` `AAB 24M` `APK 20M` `minSdk 26` `targetSdk 36` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`
