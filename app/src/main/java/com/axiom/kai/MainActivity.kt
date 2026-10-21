@@ -220,13 +220,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         if (!vm.billingHasV2(ctx)) {
             prefs.edit().putLong("v2_expiry", System.currentTimeMillis() + 36500L * 86400000L).apply()
         }
-        if (vm.downloadState.value.values.none { it } && vm.downloadProgress.value.isEmpty()) {
-            ModelCatalog.models.firstOrNull { it.tag == "llama3.2:3b" }?.let {
-                vm.downloadModel(ctx, it.tag) { _ ->
-                    Toast.makeText(ctx, "Downloading recommended ${it.tag} ★ (${it.sizeMb}MB)…", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
     }
 
     Scaffold(
@@ -403,8 +396,8 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                          vm.setModel(e.tag)
                                          if (isRemote) {
                                              if (e.tag.startsWith("gemini:")) {
-                                                 if (!GeminiClient.isLoggedIn(ctx) || !GeminiClient.hasApiKey(ctx)) {
-                                                     Toast.makeText(ctx, "Tap ✦ to set up Gemini (Google login + API key)", Toast.LENGTH_SHORT).show()
+                                                if (!GeminiClient.hasApiKey(ctx)) {
+                                                    Toast.makeText(ctx, "Tap ✦ to set your Gemini API key", Toast.LENGTH_SHORT).show()
                                                      showGeminiSettings = true
                                                  } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
                                              } else {
