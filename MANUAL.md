@@ -24,7 +24,7 @@ First launch: black `Theme.Kai.DarkLaunch` → `Max` memory auto-migration (`MIG
 ## 2. First Run
 
 1. **Permissions:** Allow `Notifications` when prompted (keeps "Kai is thinking…" when locked).
-2. **Model:** Top `model` chip → picker shows `★ Recommended` (`llama3.2:3b`, `coder:3b`, `gemma2:2b`) — `0.5B` is `FAST_TAG` but too dumb, `7B` is slow. Free tier has `3B` free; Pro early `axiom:3b` + `nomic-embed`. Tap `⬇` to download (via `DownloadManager` `1.9G`, resume via `.part`, `syncExternalToInternal`, `loadInRust`).
+2. **Model:** Top `model` chip → picker shows `★ Recommended` (`llama3.2:3b`, `coder:3b`, `gemma2:2b`) — `0.5B` is `FAST_TAG` but too dumb, `7B` is slow. Tap `⬇` to download (via `DownloadManager` `1.9G`, resume via `.part`, `syncExternalToInternal`, `loadInRust`).
 3. **No ads:** Kai ships without any advertising SDK. No AdMob, no analytics.
 4. **Try:** Suggestions `Hi, I'm Kai` → tap one or type + `Send`. `VFE` meter shows `surprise+KL` + `g→T'`.
 
@@ -102,15 +102,7 @@ The previous account build is preserved in git tag `v1.0.4-account`.
 
 ---
 
-## 7. Billing — Pro
-
-**Pro** `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (`non-consumable`, `hasPro`) + legacy `v2/v3 30/90d` also grant pro. Picker `MainActivity.kt:476` if `requiresPro` (`axiom:3b`, `nomic`) and `!hasPro` → `🔒 Pro early access` toast. `Kai Pro — $4.99 one-time (early access + support development)` `MainActivity.kt:464` `launchPurchase(PRO)`. Pro is optional: early models + supporting a solo dev; no ads are shown to anyone.
-
-**Play Console:** Create `Managed product` `kai_pro` `$4.99` `one-time`, not subscription. `Billing 8.3.0`.
-
----
-
-## 8. Kai PC Live (Optional)
+## 7. Kai PC Live (Optional)
 
 Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 
@@ -120,7 +112,7 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 
 ---
 
-## 9. Settings (⚙️)
+## 8. Settings (⚙️)
 
 - `✦ API Keys` → `Gemini 1.5 flash/pro` key `GeminiClient`, plus DeepSeek/OpenAI/Qwen/Claude `RemoteLLMClient` (stored locally)
 - `🎨 Theme: Dark/White` `getThemeMode` `kai_theme.xml` `0/1` `ThemeVersion`
@@ -131,7 +123,7 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 
 ---
 
-## 10. Troubleshooting
+## 9. Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
@@ -143,20 +135,20 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 | Background stops | `POST_NOTIFICATIONS` granted? Don't swipe-kill; `KaiForegroundService` notification must stay |
 | `no GGUF — picker` | `.part` stale `cleanStaleDownloads` `ChatViewModel.kt:50`, resume via `directFallback` |
 
-**Logs:** `adb -s RQGYC026B0T shell logcat -d | grep -E "KaiBridge|ChatViewModel|Billing"`
+**Logs:** `adb -s RQGYC026B0T shell logcat -d | grep -E "KaiBridge|ChatViewModel|ModelManager"`
 
 **DB headless:** `adb shell run-as com.axiom.kai cat databases/kai.db` + `sqlite3` `select role,substr(text,1,60),model from messages`
 
 ---
 
-## 11. Privacy
+## 10. Privacy
 
 See `PRIVACY_POLICY.md` — no account, no data collected/shared, `kai.db` local, no analytics/ads/Firebase: `https://n4rus.github.io/kai-android/privacy.html`.
 
 ---
 
-## 12. Versions
+## 11. Versions
 
-`1.1.0-vanilla2` `v8` `AAB 25M` `APK 21M` `minSdk 26` `targetSdk 36` `Billing 8.3.0` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.1.0-vanilla3` `v10` `AAB 24M` `APK 20M` `minSdk 26` `targetSdk 36` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`

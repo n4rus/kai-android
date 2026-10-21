@@ -25,9 +25,6 @@ There is no account, no sign-up, no email, no login, no analytics, no advertisin
 - **Kai PC bridge (LAN only):** if you configure it, prompts and selected files are sent to the PC address you enter (TLS + Bearer token). This is your own machine; nothing reaches us.
 - **Remote LLM API keys (optional):** if you add a Gemini/DeepSeek/OpenAI/Qwen/Anthropic key, your prompts are sent directly to that provider under your own account and their privacy policy. Keys are stored locally.
 
-### 1.4 Purchases
-- Google Play Billing handles the optional `kai_pro` purchase. Payment data is processed by Google Play; Kai never sees or stores it.
-
 ## 2. Permissions
 
 - `INTERNET`, `ACCESS_NETWORK_STATE`: model download, optional Kai PC bridge, optional remote LLM APIs.
@@ -38,7 +35,6 @@ There is no account, no sign-up, no email, no login, no analytics, no advertisin
 
 ## 3. Third-Party Services
 
-- **Google Play Billing 8.3.0** — optional one-time `kai_pro` purchase. https://policies.google.com/privacy
 - **GitHub / Hugging Face** — model file downloads. https://docs.github.com/site-policy/privacy-policies and https://huggingface.co/privacy
 - No advertising networks, no analytics providers, no data brokers, no Firebase.
 

@@ -33,7 +33,7 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 - **GGUF via `rust-bridge/src/lib.rs:66` `kai_load_gguf_slot`** — `llama.cpp` `LlamaModelParams::with_n_gpu_layers(99)` Vulkan (fallback CPU), `n_ctx 1024`, `new_tokens 192`, `threads 2-6`, `CANCEL_FLAGS` per slot
 - **Dual slots** `SLOTS[0]=FAST / [1]=DEEP` — `ModelRouter` picks `coder:3b` for code, `gemma2/llama3.2` for deep, `llama3.2:3b` default (`ModelManager.kt:285` `FAST_TAG`)
 - **Streaming** `StreamingGenerate.kt:8` — Rust generates full, Kotlin batches `16` tokens `16ms` to avoid recomposition storm
-- **Catalog** `ModelManager.kt:20` — `kai-pc:live` (remote), `gemini:flash/pro`, `deepseek/gpt/qwen/claude` (API keys), local `0.5B/3B/7B/8B/9B`, `axiom:3b` + `nomic-embed:768` (Pro early access)
+- **Catalog** `ModelManager.kt:20` — `kai-pc:live` (remote), `gemini:flash/pro`, `deepseek/gpt/qwen/claude` (API keys), local `0.5B/3B/7B/8B/9B`, `axiom:3b` + `nomic-embed:768`
 
 ### Physics — VFE / Curvature / g_ij
 - `VFE = surprise + KL` `Soul.kt` + `kai_calculate_vfe` `lib.rs:126`
@@ -55,11 +55,9 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 - No analytics, ads, Firebase, or crash reporting
 - Optional Kai PC bridge: self-signed TLS + Bearer token, LAN only
 
-### Billing
-- `BillingManager.kt:10` `PRO kai_pro $4.99 one-time` (non-consumable, `hasPro`) + legacy `v2/v3 30/90d` also grant pro
-- `ModelManager.kt:11` `requiresPro` (`axiom:3b`, `nomic` early) — picker `MainActivity.kt:476` locks for free
-- Free: all core chat + `3B` models. Pro (one-time) unlocks early-access models and supports development
-- No ads, no AdMob SDK, no analytics
+### Free & open source
+- Everything is free: all chat, models, memory, tools, and the PC bridge
+- No billing, no subscriptions, no ads, no accounts
 
 ### Background Continuation
 - `KaiForegroundService.kt:1` `FOREGROUND_SERVICE_DATA_SYNC` + `PARTIAL_WAKE_LOCK 10min`, `NotificationChannel kai_generation`, `Start` on `_isGenerating=true` `ChatViewModel.kt:393` `startBg`, `Stop` on `false`, `POST_NOTIFICATIONS` request `MainActivity.kt:204`, survives lock/app switch (don't swipe-kill)
@@ -79,7 +77,7 @@ User → Compose (MainActivity.kt:127 KaiScreen)
        ├─ ChatViewModel.kt (StateFlow messages/model/isGenerating, Room kai.db + backup, send pipeline)
        ├─ StreamingGenerate.kt → KaiBridge.kt → rust-bridge/src/lib.rs (JNI) → llama.cpp (Vulkan/CPU)
        ├─ MemoryDb.kt / KnowledgeDb.kt / Skills.kt / AgentLoop.kt / Tools.kt
-       ├─ BillingManager.kt / KaiPcClient.kt
+       ├─ KaiPcClient.kt
        └─ KaiForegroundService.kt (background)
 ```
 
@@ -124,12 +122,11 @@ kai-android/
         ModelManager.kt (Catalog ★ 3B, Router FAST_TAG llm3.2:3b, delete)
         MemoryDb.kt/KnowledgeDb.kt (128→768 transpose), Skills.kt, AgentLoop.kt
         Tools.kt (14 tools + tryToolFromModel + toolsPrompt), Soul.kt, Lang.kt
-        BillingManager.kt (PRO $4.99), KaiPcClient.kt (TLS+token)
+        KaiPcClient.kt (TLS+token)
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 36, versionCode 8, Billing 8.3.0, Room 2.6.1)
+    build.gradle.kts (compileSdk 36, versionCode 10, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
-  app/google-services.json (placeholder → real kai-android-c291c)
   kai-upload.jks + keystore.properties
   PRIVACY_POLICY.md / STORE_LISTING.md / MANUAL.md (this repo)
   README.md / LICENSE (MIT)
@@ -139,7 +136,7 @@ kai-android/
 
 ## Usage
 
-See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, tools, Pro, Kai PC, troubleshooting).
+See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, tools, Kai PC, troubleshooting).
 
 ---
 
@@ -156,7 +153,7 @@ See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, to
 
 **Why 3B default?** `0.5B` too dumb, `7B` too slow on `A36` (`120s` → `30s` with `1024/192`). `3B Q4_K_M` is sweet spot (`ModelManager.kt:48`).
 
-**Ads?** None. Kai ships with no advertising SDK. Pro `$4.99` one-time (optional) unlocks early-access models (`axiom:3b`, `nomic`) and supports development.
+**Ads?** None. **Purchases?** None. Every feature and model is free.
 
 **Background?** `KaiForegroundService` keeps CPU + notification while thinking, survives lock/switch (don't swipe-kill). `POST_NOTIFICATIONS` granted.
 

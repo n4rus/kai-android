@@ -9,7 +9,7 @@
 - **Privacy policy URL:** https://n4rus.github.io/kai-android/privacy.html
 - **Ads:** **No** — no advertising SDK
 - **Accounts:** **No** — no sign-up, no login, no email
-- **In-app purchases:** Yes — `kai_pro`, one-time $4.99 (optional)
+- **In-app purchases:** **No** — all features are free; no billing library
 
 ## Short description (80 chars max)
 
@@ -38,8 +38,8 @@ Kai — your offline AI companion. Runs on your phone. No account, no cloud.
 **Free and open source**
 - Free: all core chat, local models, memory, and tools
 - No ads, ever
-- Optional Kai Pro (one-time $4.99): early-access experimental models and a direct way to support a solo developer. No subscription, no recurring charge
-- Purchase is tied to your Google account and can be restored on any device
+- Every feature is free: all local models, tools, memory, and the PC bridge
+- No purchases, no subscriptions, no billing screen
 - Source code (MIT): https://github.com/n4rus/kai-android
 
 **Made for offline**
@@ -60,7 +60,7 @@ Kai — sua IA offline. Roda no seu celular, sem conta e sem nuvem obrigatória.
 - Modelo 3B recomendado, roda até em aparelhos modestos
 - Memória persistente, ferramentas e agente com múltiplos passos
 - Geração continua com a tela bloqueada
-- Grátis e sem anúncios; Kai Pro opcional $4.99 único (modelos experimentais + apoio ao dev)
+- Grátis e sem anúncios; todos os recursos liberados, sem compras
 - Código aberto (MIT): github.com/n4rus/kai-android
 
 ## Data Safety (Play Console answers)
@@ -91,9 +91,8 @@ Optional user-initiated features (not developer collection): Kai PC bridge sends
 
 ## Pricing
 
-- App: Free
-- Managed product ID: **`kai_pro`** — $4.99, one-time, non-consumable
-- Legacy IDs `kai_v2_30d`, `kai_v2_90d`, `kai_v3_30d`, `kai_v3_90d` remain recognized for restore only — do not create them as active products
+- App: **Free**
+- In-app purchases: **None** — no products, no subscriptions, no ads
 
 ## Graphics
 
@@ -104,7 +103,7 @@ Optional user-initiated features (not developer collection): Kai PC bridge sends
 
 ## Release track plan
 
-1. Internal testing (upload AAB `1.1.0-vanilla2` / 9, add `lucasejs@live.com`, install from Play link)
-2. Verify chat + Pro purchase/restore on A36 (RQGYC026B0T)
+1. Internal testing (upload AAB `1.1.0-vanilla3` / 10, add `lucasejs@live.com`, install from Play link)
+2. Verify chat, model download, and background generation on A36 (RQGYC026B0T)
 3. Closed testing if Play requires it for new personal accounts (12 testers / 14 days)
 4. Production rollout 20% → 50% → 100%

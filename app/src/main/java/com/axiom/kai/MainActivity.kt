@@ -215,11 +215,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
         vm.initPersistence(ctx)   // Tier 1: load last chat + messages
         vm.autoLoadIfAvailable(ctx) // GGUF auto-recover
         vm.resumeIncompleteDownloads(ctx) // resume partial downloads with progress bar
-        // Unlock Pro on this device (dev/owner device — v2 features free for you)
-        val prefs = ctx.getSharedPreferences("kai_billing", Context.MODE_PRIVATE)
-        if (!vm.billingHasV2(ctx)) {
-            prefs.edit().putLong("v2_expiry", System.currentTimeMillis() + 36500L * 86400000L).apply()
-        }
     }
 
     Scaffold(
@@ -414,11 +409,7 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                                  } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
                                              }
                                           } else if (!downloaded && pct == null) {
-                                              if (e.requiresPro && !BillingManager(ctx).hasPro()) {
-                                                  Toast.makeText(ctx, "🔒 ${e.tag} — Pro early access ($4.99 one-time). Tap Get Kai Pro below.", Toast.LENGTH_LONG).show()
-                                              } else {
-                                                  vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
-                                              }
+                                              vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
                                           } else if (downloaded) {
                                               Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
                                               vm.tryLoadCurrentModel(ctx) { r ->
@@ -429,18 +420,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                       }
                                   )
                               }
-                             DropdownMenuItem(
-                                 text = { Text(if (BillingManager(ctx).hasPro()) "Kai Pro ✓ — early releases + dev support" else "Kai Pro — $4.99 one-time (early access + support development)") },
-                                 onClick = {
-                                     try {
-                                         BillingManager(ctx).connect {
-                                             val activity = ctx as? android.app.Activity
-                                             if (activity != null) BillingManager(ctx).launchPurchase(activity, BillingSkus.PRO)
-                                         }
-                                     } catch (_: Throwable) { Toast.makeText(ctx, "Kai Pro $4.99 — one-time, no subscription", Toast.LENGTH_SHORT).show() }
-                                     pickerExpanded = false
-                                 }
-                             )
                             // Tier 2: memory count
                             DropdownMenuItem(
                                 text = { Text("Memory: ${vm.memoryCount.collectAsState().value} facts (say \"remember X\")") },

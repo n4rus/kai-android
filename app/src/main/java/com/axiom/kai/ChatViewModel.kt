@@ -219,21 +219,6 @@ class ChatViewModel : ViewModel() {
         return label
     }
 
-    // Billing — v1 free, v2/v3 $4.99 per period
-    fun billingHasV2(ctx: Context): Boolean = BillingManager(ctx).hasV2()
-    fun billingHasV3(ctx: Context): Boolean = BillingManager(ctx).hasV3()
-    fun billingHasPro(ctx: Context): Boolean = BillingManager(ctx).hasPro()
-    fun billingDaysLeft(ctx: Context, v2: Boolean = true): Long {
-        val bm = BillingManager(ctx)
-        return if (v2) bm.daysLeftV2() else bm.daysLeftV3()
-    }
-    fun requiresProForModel(tag: String): Boolean {
-        return ModelCatalog.byTag(tag)?.requiresPro == true
-    }
-    fun requiresV2ForModel(tag: String): Boolean {
-        return requiresProForModel(tag)
-    }
-
     // ---- Tier 1: chat persistence ----
     private var currentChatId: String = java.util.UUID.randomUUID().toString()
     fun currentChatId(): String = currentChatId
