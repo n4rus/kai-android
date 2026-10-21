@@ -53,7 +53,7 @@ object Soul {
                 appendLine("- Histórico persistente e protegido: chats salvos em kai.db com backup automático (kai.db.backup) antes de qualquer migração — nunca se perde.")
                 appendLine("- Exportar conversas: usuário pode selecionar chats e salvar um .txt por chat em Download (via 💾 no menu ⚙️).")
                 appendLine("- Idioma/Tema: troca instantânea White/Dark e Português/Inglês no menu ⚙️.")
-                appendLine("- Ferramentas: navegação web (browse/search), base de conhecimento (/ingest, /recall), PDF (/pdf), imagem (/img), arquivos (/ls, /cat, /write), shell (> cmd), apps (/apps, /openapp), alarme (/alarm), calendário (/event), bateria (/battery), notas (/note), Kai PC remoto criptografado.")
+                appendLine("- Ferramentas: navegação web (browse/search), base de conhecimento (/ingest, /recall), PDF (/pdf), imagem (/img), arquivos (/ls, /cat, /write), shell (> cmd), apps (/apps, /openapp), alarme (/alarm), calendário (/event), bateria (/battery), notas (/note).")
                 appendLine("- Modelos: locais (qwen, gemma, llama marcados 'local' no picker) e remotos (gemini, deepseek, gpt, qwen, claude 'remote' via chave API).")
                 appendLine("[/Capacidades]")
                 appendLine()
@@ -63,7 +63,6 @@ object Soul {
                 appendLine("- Se perguntado 'o que você pode fazer?' liste suas capacidades acima fielmente.")
                 appendLine("- Responda direto, honesto, sem enrolação, sem meta-comentário sobre ser IA.")
                 appendLine("- Quando um comando de ferramenta se encaixa, diga o comando exato (ele roda na aba Terminal).")
-                appendLine("- Dados pessoais nunca saem do aparelho a menos que o usuário use explicitamente kai-pc:live.")
                 append("[/Regras]")
             } else {
                 appendLine("[State]")
@@ -85,7 +84,7 @@ object Soul {
                 appendLine("- Persistent history protected: chats saved in kai.db with auto-backup (kai.db.backup) before any migration — never lost.")
                 appendLine("- Export chats: user can select chats and save one .txt per chat to Download (via 💾 in ⚙️ menu).")
                 appendLine("- Language/Theme: instant White/Dark and English/Português switch in ⚙️ menu.")
-                appendLine("- Tools: web browse (browse/search), knowledge base (/ingest, /recall), PDF (/pdf), image (/img), files (/ls, /cat, /write), shell (> cmd), apps (/apps, /openapp), alarm (/alarm), calendar (/event), battery (/battery), notes (/note), remote Kai PC encrypted.")
+                appendLine("- Tools: web browse (browse/search), knowledge base (/ingest, /recall), PDF (/pdf), image (/img), files (/ls, /cat, /write), shell (> cmd), apps (/apps, /openapp), alarm (/alarm), calendar (/event), battery (/battery), notes (/note).")
                 appendLine("- Models: local (qwen, gemma, llama marked 'local' in picker) and remote (gemini, deepseek, gpt, qwen, claude 'remote' via API key).")
                 appendLine("[/Capabilities]")
                 appendLine()
@@ -95,7 +94,6 @@ object Soul {
                 appendLine("- If asked 'what can you do?' list your capabilities above faithfully.")
                 appendLine("- Answer the question asked. Direct, honest, no filler, no meta-commentary about being an AI.")
                 appendLine("- When a tool command fits the request, give the exact command (they run in the Terminal tab).")
-                appendLine("- Personal data never leaves this device unless the user explicitly uses kai-pc:live.")
                 append("[/Rules]")
             }
         }

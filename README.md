@@ -1,7 +1,7 @@
 # Kai — Offline AI Companion (Android)
 
 > **Private • Offline • Encrypted • No monthly fees**
-> Runs `llama.cpp` via Rust (`kai-bridge`) → `ARM64/x86_64 JNI` → `Kotlin Compose`. Multi-model picker + live VFE meter + persistent memory + agent tools. Fully offline-first, with optional encrypted Kai PC bridge.
+> Runs `llama.cpp` via Rust (`kai-bridge`) → `ARM64/x86_64 JNI` → `Kotlin Compose`. Multi-model picker + live VFE meter + persistent memory + agent tools. Fully offline-first.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-API%2026%2B-3DDC84?logo=android)](app/)
@@ -33,7 +33,7 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 - **GGUF via `rust-bridge/src/lib.rs:66` `kai_load_gguf_slot`** — `llama.cpp` `LlamaModelParams::with_n_gpu_layers(99)` Vulkan (fallback CPU), `n_ctx 1024`, `new_tokens 192`, `threads 2-6`, `CANCEL_FLAGS` per slot
 - **Dual slots** `SLOTS[0]=FAST / [1]=DEEP` — `ModelRouter` picks `coder:3b` for code, `gemma2/llama3.2` for deep, `llama3.2:3b` default (`ModelManager.kt:285` `FAST_TAG`)
 - **Streaming** `StreamingGenerate.kt:8` — Rust generates full, Kotlin batches `16` tokens `16ms` to avoid recomposition storm
-- **Catalog** `ModelManager.kt:20` — `kai-pc:live` (remote), `gemini:flash/pro`, `deepseek/gpt/qwen/claude` (API keys), local `0.5B/3B/7B/8B/9B`, `axiom:3b` + `nomic-embed:768`
+- **Catalog** `ModelManager.kt:20` — `gemini:flash/pro`, `deepseek/gpt/qwen/claude` (API keys), local `0.5B/3B/7B/8B/9B`, `axiom:3b` + `nomic-embed:768`
 
 ### Physics — VFE / Curvature / g_ij
 - `VFE = surprise + KL` `Soul.kt` + `kai_calculate_vfe` `lib.rs:126`
@@ -47,16 +47,15 @@ This is the **clean public repo** for the Android app. The parent `axiom_horizon
 
 ### Agent & Tools (`Tools.kt:10`)
 **14 tools, LLM can call itself** `Tools.kt:407` `FUNCTION CALLING` (`/search <q>` → system executes → follow-up generation `ChatViewModel.kt:674`):
-`browse`, `search` (DuckDuckGo), `ingest/recall`, `pdf` (`pdfbox-android`), `img` (local EXIF, full vision via Kai PC), `ls/cat/write`, `shell` (`> cmd`), `apps/openapp/url`, `alarm/event`, `battery`, `note`, `export` (`⚙️→💾`), `Kai PC` (`KaiPcClient.kt`)
+`browse`, `search` (DuckDuckGo), `ingest/recall`, `pdf` (`pdfbox-android`), `img` (local EXIF), `ls/cat/write`, `shell` (`> cmd`), `apps/openapp/url`, `alarm/event`, `battery`, `note`, `export` (`⚙️→💾`)
 
 ### Privacy & Security
 - **No account, no login, no email** — open and chat; nothing to sign up for
 - Chats/memories in app-private Room `kai.db`; `allowBackup="false"` (no Google Drive copy)
 - No analytics, ads, Firebase, or crash reporting
-- Optional Kai PC bridge: self-signed TLS + Bearer token, LAN only
 
 ### Free & open source
-- Everything is free: all chat, models, memory, tools, and the PC bridge
+- Everything is free: all chat, models, memory, and tools
 - No billing, no subscriptions, no ads, no accounts
 
 ### Background Continuation
@@ -77,7 +76,6 @@ User → Compose (MainActivity.kt:127 KaiScreen)
        ├─ ChatViewModel.kt (StateFlow messages/model/isGenerating, Room kai.db + backup, send pipeline)
        ├─ StreamingGenerate.kt → KaiBridge.kt → rust-bridge/src/lib.rs (JNI) → llama.cpp (Vulkan/CPU)
        ├─ MemoryDb.kt / KnowledgeDb.kt / Skills.kt / AgentLoop.kt / Tools.kt
-       ├─ KaiPcClient.kt
        └─ KaiForegroundService.kt (background)
 ```
 
@@ -122,10 +120,9 @@ kai-android/
         ModelManager.kt (Catalog ★ 3B, Router FAST_TAG llm3.2:3b, delete)
         MemoryDb.kt/KnowledgeDb.kt (128→768 transpose), Skills.kt, AgentLoop.kt
         Tools.kt (14 tools + tryToolFromModel + toolsPrompt), Soul.kt, Lang.kt
-        KaiPcClient.kt (TLS+token)
         ui/theme/Theme.kt
       res/values/{strings.xml, themes.xml} mipmap-anydpi/...
-    build.gradle.kts (compileSdk 36, versionCode 11, Room 2.6.1)
+    build.gradle.kts (compileSdk 36, versionCode 12, Room 2.6.1)
   rust-bridge/src/lib.rs (dual slots, cancel, VFE, render chat, Vulkan n_gpu 99, n_ctx 1024, new_tokens 192)
   kai-upload.jks + keystore.properties
   PRIVACY_POLICY.md / STORE_LISTING.md / MANUAL.md (this repo)
@@ -136,7 +133,7 @@ kai-android/
 
 ## Usage
 
-See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, tools, Kai PC, troubleshooting).
+See **`MANUAL.md`** for full user manual (install, models, chat, VFE, memory, tools, troubleshooting).
 
 ---
 

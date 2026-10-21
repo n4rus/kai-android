@@ -33,12 +33,11 @@ Kai — your offline AI companion. Runs on your phone. No account, no cloud.
 - Persistent memory, knowledge base, skills, and a multi-step agent loop
 - Tools: /search /browse /pdf /ls /battery and more (enabled per tool)
 - Background generation keeps running when the screen is locked (Android 8+)
-- Kai PC bridge (optional): pair with your desktop over TLS so Kai can see local files
 
 **Free and open source**
 - Free: all core chat, local models, memory, and tools
 - No ads, ever
-- Every feature is free: all local models, tools, memory, and the PC bridge
+- Every feature is free: all local models, tools, and memory
 - No purchases, no subscriptions, no billing screen
 - Source code (MIT): https://github.com/n4rus/kai-android
 
@@ -76,7 +75,7 @@ Kai — sua IA offline. Roda no seu celular, sem conta e sem nuvem obrigatória.
 - Data deletion request: **N/A** — user deletes chats in-app or uninstalls; the developer holds no data
 - Independent security review: No
 
-Optional user-initiated features (not developer collection): Kai PC bridge sends prompts to the user's own PC on LAN; adding a third-party API key sends prompts directly to that provider under the user's account.
+Optional user-initiated feature (not developer collection): adding a third-party API key sends prompts directly to that provider under the user's account.
 
 ## Content rating questionnaire
 
@@ -103,7 +102,7 @@ Optional user-initiated features (not developer collection): Kai PC bridge sends
 
 ## Release track plan
 
-1. Internal testing (upload AAB `1.1.0-vanilla4` / 11, add `lucasejs@live.com`, install from Play link)
+1. Internal testing (upload AAB `1.1.0-vanilla5` / 12, add `lucasejs@live.com`, install from Play link)
 2. Verify chat, model download, and background generation on A36 (RQGYC026B0T)
 3. Closed testing if Play requires it for new personal accounts (12 testers / 14 days)
 4. Production rollout 20% → 50% → 100%

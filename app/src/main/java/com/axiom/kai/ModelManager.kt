@@ -9,7 +9,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class ModelEntry(
-    val tag: String, // e.g. "qwen2.5:0.5b" or "kai-pc:live"
+    val tag: String, // e.g. "qwen2.5:0.5b"
     val url: String, // Hugging Face GGUF URL or https://pc-ip:port for remote
     val fileName: String,
     val sizeMb: Int,
@@ -19,12 +19,7 @@ data class ModelEntry(
 
 object ModelCatalog {
     // Q4_K_M GGUFs — phone-sized. ALL FREE in v1 (models are never paywalled).
-    // Remote models: kai-pc:live and gemini (after Google login, free).
     val models = listOf(
-        ModelEntry(
-            "kai-pc:live", "https://pc.kai.local:8443", "kai-pc-live",
-            0, "🔒 Kai PC — encrypted live (this PC's opencode, phone is remote control)", isRemote = true
-        ),
         ModelEntry(
             "gemini:flash", "https://generativelanguage.googleapis.com", "gemini-flash",
             0, "✦ Gemini Flash — Google, free after login", isRemote = true
@@ -271,7 +266,7 @@ class ModelManager(private val ctx: Context) {
 /**
  * AUTO ROUTER (Block E — soul-fusion). Picks the right voice per task:
  * code → coder model, deep reasoning → biggest downloaded general model, else fast.
- * Returns (tag, slot) or null if only kai-pc/fast available (caller keeps current).
+ * Returns (tag, slot) or null if only fast models are available (caller keeps current).
  */
 object ModelRouter {
     private val CODE_MARKERS = listOf("def ", "fun ", "class ", "import ", "#include", "function ",

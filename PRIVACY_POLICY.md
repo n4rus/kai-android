@@ -22,12 +22,11 @@ There is no account, no sign-up, no email, no login, no analytics, no advertisin
 - Inference runs entirely on-device with llama.cpp.
 
 ### 1.3 Optional network features (off by default)
-- **Kai PC bridge (LAN only):** if you configure it, prompts and selected files are sent to the PC address you enter (TLS + Bearer token). This is your own machine; nothing reaches us.
 - **Remote LLM API keys (optional):** if you add a Gemini/DeepSeek/OpenAI/Qwen/Anthropic key, your prompts are sent directly to that provider under your own account and their privacy policy. Keys are stored locally.
 
 ## 2. Permissions
 
-- `INTERNET`, `ACCESS_NETWORK_STATE`: model download, optional Kai PC bridge, optional remote LLM APIs.
+- `INTERNET`, `ACCESS_NETWORK_STATE`: model download and optional remote LLM APIs.
 - `POST_NOTIFICATIONS` (Android 13+): background generation progress notification.
 - `FOREGROUND_SERVICE`, `WAKE_LOCK`: keep generation running while the screen is off.
 - `WRITE_EXTERNAL_STORAGE` (maxSdk 28): legacy export to Download on Android 9 and below.
@@ -50,7 +49,6 @@ Not directed to children under 13. No data is collected from anyone.
 ## 6. Security
 
 - Chat data is stored in the app-private Room database, protected by Android's app sandbox.
-- Kai PC bridge: self-signed TLS + Bearer token, LAN only.
 - Data is not end-to-end encrypted at rest beyond OS app sandboxing; do not store secrets you would not keep in any local app.
 
 ## 7. Contact

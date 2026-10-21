@@ -381,54 +381,6 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             // Tier 2: extract facts ("remember X", "my name is Y") — ALL DB/memory on IO thread
             try {
-                // --- KAI-PC LIVE: if selected model is the encrypted remote, send straight to PC's live opencode session ---
-                if (curModel == "kai-pc:live") {
-                    // Auto-discover PC if not configured (no manual IP needed)
-                    var isConfigured = KaiPcClient.isConfigured(ctx)
-                    var host: String? = null
-                    var token: String? = null
-                    if (!isConfigured) {
-                        // Try auto-discovery in background, show "searching" message
-                        val searchingMsg = ChatMessage(role = Role.KAI, text = "🔍 Searching for Kai PC on local network/USB…", vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "kai-pc:live")
-                        _messages.value = _messages.value + searchingMsg
-                        host = KaiPcClient.autoDiscover(ctx)
-                        // Remove searching message
-                        _messages.value = _messages.value.filter { it.id != searchingMsg.id }
-                        if (host != null) {
-                            isConfigured = true
-                            token = KaiPcClient.getToken(ctx)
-                        }
-                    }
-                    if (!isConfigured || host == null) {
-                        val msg = "🔒 Kai PC not found automatically.\n\n" +
-                            "On PC: `python3 tools/kai_pc_server.py --port 8443 --token kai-secret-123`\n" +
-                            "On phone: ensure WiFi same as PC, or USB: `adb forward tcp:8443 tcp:8443` and use 127.0.0.1:8443\n" +
-                            "Then: Terminal → ⚙️ → enter PC IP:port + token, or just say 'export history to phone' on PC and 'import' here."
-                        val toolMsg = ChatMessage(role = Role.KAI, text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "kai-pc:live")
-                        _messages.value = _messages.value + toolMsg
-                        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            db.messageDao().insert(MessageEntity(id = toolMsg.id, chatId = currentChatId, role = "KAI",
-                                text = msg, vfe = 1.0f, curvature = 0.2f, temp = 0.5f, model = "kai-pc:live", ts = System.currentTimeMillis()))
-                        }
-                        _isGenerating.value = false; stopBg()
-                        return@launch
-                    }
-                    // Create placeholder for PC reply (will stream into it when PC responds)
-                    val pcId = java.util.UUID.randomUUID().toString()
-                    val pcMsg = ChatMessage(id = pcId, role = Role.KAI, text = "↗ Sending to Kai PC (${host})…", vfe = 2.5f, curvature = 0.5f, temp = 0.9f, model = "kai-pc:live")
-                    _messages.value = _messages.value + pcMsg
-                    // Send to PC (encrypted)
-                    val result = KaiPcClient.send(ctx, userText, "text", null)
-                    val reply = result.getOrElse { "⚠ PC error: ${it.message}\nCheck PC is running: python3 tools/kai_pc_server.py --port 8443" }
-                    _messages.value = _messages.value.map { if (it.id == pcId) it.copy(text = "🖥️ Kai PC live:\n$reply") else it }
-                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        db.messageDao().insert(MessageEntity(id = pcId, chatId = currentChatId, role = "KAI",
-                            text = "🖥️ Kai PC live:\n$reply", vfe = 2.5f, curvature = 0.5f, temp = 0.9f, model = "kai-pc:live", ts = System.currentTimeMillis()))
-                    }
-                    _isGenerating.value = false; stopBg()
-                    return@launch
-                }
-
                 memEngine.extractFact(userText)?.let { fact ->
                     memEngine.store(fact)
                     _memoryCount.value = db.memoryDao().count()
@@ -750,58 +702,6 @@ class ChatViewModel : ViewModel() {
     fun promoteRecursive(ctx: Context, msg: ChatMessage) {
         val stripped = msg.text.removePrefix("↻ ").take(400)
         send(ctx, stripped)
-    }
-
-    // --- Kai PC live: send image/file directly to PC's live terminal ---
-    fun sendPCImage(ctx: Context, base64: String, filename: String) {
-        if (_isGenerating.value) return
-        val userText = "📷 Image $filename"
-        val userMsg = ChatMessage(role = Role.USER, text = userText, model = "kai-pc:live")
-        _messages.value = _messages.value + userMsg
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val db = KaiDb.get(ctx)
-            db.messageDao().insert(MessageEntity(id = userMsg.id, chatId = currentChatId, role = "USER", text = encText(userText), vfe = null, curvature = null, temp = null, model = "kai-pc:live", ts = System.currentTimeMillis()))
-        }
-        _isGenerating.value = true
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val result = KaiPcClient.send(ctx, base64, "image", filename)
-                val reply = result.getOrElse { "⚠ PC error: ${it.message}" }
-                val msg = ChatMessage(role = Role.KAI, text = "🖥️ Kai PC (image $filename):\n$reply", vfe = 2.5f, curvature = 0.6f, temp = 0.9f, model = "kai-pc:live")
-                _messages.value = _messages.value + msg
-                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    KaiDb.get(ctx).messageDao().insert(MessageEntity(id = msg.id, chatId = currentChatId, role = "KAI", text = msg.text, vfe = 2.5f, curvature = 0.6f, temp = 0.9f, model = "kai-pc:live", ts = System.currentTimeMillis()))
-                }
-            } catch (t: Throwable) {
-                android.util.Log.e("ChatViewModel", "pc image send failed: $t")
-            }
-            _isGenerating.value = false; stopBg()
-        }
-    }
-
-    fun sendPCFile(ctx: Context, base64: String, filename: String) {
-        if (_isGenerating.value) return
-        val userText = "📎 File $filename"
-        val userMsg = ChatMessage(role = Role.USER, text = userText, model = "kai-pc:live")
-        _messages.value = _messages.value + userMsg
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            KaiDb.get(ctx).messageDao().insert(MessageEntity(id = userMsg.id, chatId = currentChatId, role = "USER", text = encText(userText), vfe = null, curvature = null, temp = null, model = "kai-pc:live", ts = System.currentTimeMillis()))
-        }
-        _isGenerating.value = true
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val result = KaiPcClient.send(ctx, base64, "file", filename)
-                val reply = result.getOrElse { "⚠ PC error: ${it.message}" }
-                val msg = ChatMessage(role = Role.KAI, text = "🖥️ Kai PC (file $filename):\n$reply", vfe = 2.5f, curvature = 0.6f, temp = 0.9f, model = "kai-pc:live")
-                _messages.value = _messages.value + msg
-                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    KaiDb.get(ctx).messageDao().insert(MessageEntity(id = msg.id, chatId = currentChatId, role = "KAI", text = msg.text, vfe = 2.5f, curvature = 0.6f, temp = 0.9f, model = "kai-pc:live", ts = System.currentTimeMillis()))
-                }
-            } catch (t: Throwable) {
-                android.util.Log.e("ChatViewModel", "pc file send failed: $t")
-            }
-            _isGenerating.value = false; stopBg()
-        }
     }
 
     fun clear() { _messages.value = emptyList(); recursionDepth = 0 }

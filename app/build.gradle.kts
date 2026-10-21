@@ -22,8 +22,8 @@ android {
         applicationId = "com.axiom.kai"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.1.0-vanilla4"
+        versionCode = 12
+        versionName = "1.1.0-vanilla5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {

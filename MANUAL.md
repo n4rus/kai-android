@@ -33,7 +33,7 @@ First launch: black `Theme.Kai.DarkLaunch` → `Max` memory auto-migration (`MIG
 ## 3. Chat
 
 ### Input
-- `📷` pick image → if `kai-pc:live` sends base64 to PC SigLIP, else local EXIF `Tools.kt:imageInfo`
+- `📷` pick image → local EXIF `Tools.kt:imageInfo`
 - `📎` pick file → `Tools.kt:readFile` (`pdfbox-android` for `.pdf`) or sends to PC inbox `kai_phone_inbox/`
 - `OutlinedTextField` `maxLines 4` + `Send` (`enabled = input.isNotBlank() && !generating` `MainActivity.kt:121`) — disabled while thinking to avoid freeze
 - `Enter` sends, history is `SelectionContainer` copyable, `LazyColumn` auto-scrolls to last `LaunchedEffect(messages.size)`
@@ -102,28 +102,17 @@ The previous account build is preserved in git tag `v1.0.4-account`.
 
 ---
 
-## 7. Kai PC Live (Optional)
-
-Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
-
-**PC:** `python3 axiom_horizon/tools/kai_pc_server.py --port 8443 --token kai-secret-123` → `https://0.0.0.0:8443` `health/live`
-
-**Phone:** `⚙️ → 🖥️` → `192.168.100.208:8443` + `kai-secret-123` (`kai_pc.xml`) `isConfigured`, `autoDiscover` `KaiPcClient:44` + `adb reverse tcp:8443`. picker `kai-pc:live` → `send` `KaiPcClient.send` `POST /` `type text/file/image` base64, `fetchLive` `/live`.
-
----
-
-## 8. Settings (⚙️)
+## 7. Settings (⚙️)
 
 - `✦ API Keys` → `Gemini 1.5 flash/pro` key `GeminiClient`, plus DeepSeek/OpenAI/Qwen/Claude `RemoteLLMClient` (stored locally)
 - `🎨 Theme: Dark/White` `getThemeMode` `kai_theme.xml` `0/1` `ThemeVersion`
 - `⚡ VFE ON/OFF` `show_physics` `kai_prefs`, tap cards to hide (see §3)
 - `🌐 Language: en/pt` `Lang.kt` `version` live recomposition
 - `💾 Export chats to Download` `getExternalFilesDir` + `Tool` export `MemoryDbKtDarwinSyncExport`
-- `🖥️ Kai PC`
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
@@ -141,14 +130,14 @@ Encrypted LAN bridge `KaiPcClient.kt:23` `TLS self-signed` + `Bearer token`.
 
 ---
 
-## 10. Privacy
+## 9. Privacy
 
 See `PRIVACY_POLICY.md` — no account, no data collected/shared, `kai.db` local, no analytics/ads/Firebase: `https://n4rus.github.io/kai-android/privacy.html`.
 
 ---
 
-## 11. Versions
+## 10. Versions
 
-`1.1.0-vanilla4` `v11` `AAB 24M` `APK 20M` `minSdk 26` `targetSdk 36` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.1.0-vanilla5` `v12` `AAB 24M` `APK 20M` `minSdk 26` `targetSdk 36` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`

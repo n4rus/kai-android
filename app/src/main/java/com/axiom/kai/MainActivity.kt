@@ -140,12 +140,14 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     var configExpanded by remember { mutableStateOf(false) }
     var showPhysics by remember { mutableStateOf(ctx.getSharedPreferences("kai_prefs", Context.MODE_PRIVATE).getBoolean("show_physics", true)) } // VFE/tau active by default, persisted
     var vfeCollapsed by remember { mutableStateOf(false) } // tap to hide — only hides, does not turn off
-    var showPcSettings by remember { mutableStateOf(false) }
     var showGeminiSettings by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
     var showLangPicker by remember { mutableStateOf(false) }
     var showExportChats by remember { mutableStateOf(false) }
     var deleteModelTag by remember { mutableStateOf<String?>(null) }
+    var fastExpanded by remember { mutableStateOf(false) }
+    var largeExpanded by remember { mutableStateOf(false) }
+    var remoteExpanded by remember { mutableStateOf(false) }
     val models = ModelCatalog.models
     val lastKai = messages.lastOrNull { it.role != Role.USER }
 
@@ -153,18 +155,9 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             pickedImageUri = it
-            // If kai-pc:live is selected, send image straight to PC's live terminal
-            if (vm.currentModel() == "kai-pc:live" && KaiPcClient.isConfigured(ctx)) {
-                val (b64, name) = KaiPcClient.fileToBase64(ctx, it) ?: (null to null)
-                if (b64 != null) {
-                    vm.sendPCImage(ctx, b64, name ?: "image")
-                    Toast.makeText(ctx, "📷 Sending image to Kai PC…", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                val msg = "📷 ${it.lastPathSegment ?: "image"} — describe this image"
-                vm.send(ctx, msg)
-                Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
-            }
+            val msg = "📷 ${it.lastPathSegment ?: "image"} — describe this image"
+            vm.send(ctx, msg)
+            Toast.makeText(ctx, "Image attached — Kai will see it", Toast.LENGTH_SHORT).show()
         }
     }
     // 🔔 Notification permission for background generation (Android 13+)
@@ -176,17 +169,9 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
             }
         }
     }
-    // 📎 File explorer: pick ANY file → Kai reads content into context (or sends to PC if kai-pc)
+    // 📎 File explorer: pick ANY file → Kai reads content into context
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { u ->
-            if (vm.currentModel() == "kai-pc:live" && KaiPcClient.isConfigured(ctx)) {
-                val (b64, name) = KaiPcClient.fileToBase64(ctx, u) ?: (null to null)
-                if (b64 != null) {
-                    vm.sendPCFile(ctx, b64, name ?: "file")
-                    Toast.makeText(ctx, "📎 Sending file to Kai PC…", Toast.LENGTH_SHORT).show()
-                    return@rememberLauncherForActivityResult
-                }
-            }
             try {
                 val name = (u.lastPathSegment ?: "file")
                 val isPdf = name.lowercase().endsWith(".pdf") ||
@@ -276,14 +261,6 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                 onClick = { showExportChats = true; configExpanded = false }
                             )
                             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                            DropdownMenuItem(
-                                text = { Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("🖥️", style = MaterialTheme.typography.titleMedium)
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(Lang.t(ctx, "Kai PC — Encrypted Live", "Kai PC — Ao Vivo Criptografado"), style = MaterialTheme.typography.bodyMedium)
-                                }},
-                                onClick = { showPcSettings = true; configExpanded = false }
-                            )
                         }
                     }
                     // Chat history drawer — only history (☰)
@@ -360,66 +337,50 @@ fun KaiScreen(vm: ChatViewModel = viewModel()) {
                                     Toast.makeText(ctx, "auto — code→coder, deep→best, else→fast", Toast.LENGTH_SHORT).show()
                                 }
                             )
-                             models.forEach { e ->
-                                 val downloaded = downloadState[e.tag] == true
-                                 val pct = progress[e.tag]
-                                 val isRemote = e.isRemote
-                                 val isRecommended = e.tag in listOf("qwen2.5-coder:3b", "gemma2:2b", "llama3.2:3b", "qwen2.5-axiom:3b")
-                                 val label = when {
-                                     isRemote -> "${e.tag} ✦ remote"
-                                     downloaded -> "${e.tag} ✓ local" + if (isRecommended) " ★" else ""
-                                     pct != null -> "${e.tag} ⬇ ${pct}%" + if (isRecommended) " ★" else ""
-                                     else -> "${e.tag} ⬇ ${e.sizeMb}MB" + if (isRecommended) " ★ Recommended" else ""
-                                 }
-                                 DropdownMenuItem(
-                                     text = { Text(label) },
-                                     trailingIcon = {
-                                         if (downloaded && !isRemote) {
-                                             Text("🗑", style = MaterialTheme.typography.bodySmall,
-                                                 modifier = Modifier.clickable {
-                                                     deleteModelTag = e.tag
-                                                     pickerExpanded = false
-                                                 }.padding(4.dp),
-                                                 color = MaterialTheme.colorScheme.error)
-                                         }
-                                     },
-                                     onClick = {
-                                         if (deleteModelTag == e.tag) {
-                                             pickerExpanded = false
-                                             return@DropdownMenuItem
-                                         }
-                                         vm.setModel(e.tag)
-                                         if (isRemote) {
-                                             if (e.tag.startsWith("gemini:")) {
-                                                if (!GeminiClient.hasApiKey(ctx)) {
-                                                    Toast.makeText(ctx, "Tap ✦ to set your Gemini API key", Toast.LENGTH_SHORT).show()
-                                                     showGeminiSettings = true
-                                                 } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
-                                             } else {
-                                                 val prov = when {
-                                                     e.tag.startsWith("deepseek:") -> "deepseek"
-                                                     e.tag.startsWith("gpt:") -> "openai"
-                                                     e.tag.startsWith("qwen:") -> "qwen"
-                                                     e.tag.startsWith("claude:") -> "claude"
-                                                     else -> ""
-                                                 }
-                                                 if (prov.isNotEmpty() && !RemoteLLMClient.hasKey(ctx, prov)) {
-                                                     Toast.makeText(ctx, "Tap ✦ → set ${prov.uppercase()} API key for ${e.tag}", Toast.LENGTH_SHORT).show()
-                                                     showGeminiSettings = true
-                                                 } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
-                                             }
-                                          } else if (!downloaded && pct == null) {
-                                              vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
-                                          } else if (downloaded) {
-                                              Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
-                                              vm.tryLoadCurrentModel(ctx) { r ->
-                                                  Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
-                                              }
-                                          }
-                                          pickerExpanded = false
-                                      }
-                                  )
-                              }
+                            val remoteModels = models.filter { it.isRemote }
+                            val localModels = models.filter { !it.isRemote }
+                            val largeModels = localModels.filter { it.sizeMb > 1024 }
+                            val fastModels = localModels.filter { it.sizeMb <= 1024 }
+                            val onPick: (ModelEntry) -> Unit = { e ->
+                                vm.setModel(e.tag)
+                                if (e.isRemote) {
+                                    if (e.tag.startsWith("gemini:")) {
+                                        if (!GeminiClient.hasApiKey(ctx)) {
+                                            Toast.makeText(ctx, "Tap ✦ to set your Gemini API key", Toast.LENGTH_SHORT).show()
+                                            showGeminiSettings = true
+                                        } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val prov = when {
+                                            e.tag.startsWith("deepseek:") -> "deepseek"
+                                            e.tag.startsWith("gpt:") -> "openai"
+                                            e.tag.startsWith("qwen:") -> "qwen"
+                                            e.tag.startsWith("claude:") -> "claude"
+                                            else -> ""
+                                        }
+                                        if (prov.isNotEmpty() && !RemoteLLMClient.hasKey(ctx, prov)) {
+                                            Toast.makeText(ctx, "Tap ✦ → set ${prov.uppercase()} API key for ${e.tag}", Toast.LENGTH_SHORT).show()
+                                            showGeminiSettings = true
+                                        } else Toast.makeText(ctx, "${e.tag} ready", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else if (downloadState[e.tag] != true && progress[e.tag] == null) {
+                                    vm.downloadModel(ctx, e.tag) { _ -> Toast.makeText(ctx, "Downloading ${e.tag}…", Toast.LENGTH_SHORT).show() }
+                                } else if (downloadState[e.tag] == true) {
+                                    Toast.makeText(ctx, "Loading ${e.tag}…", Toast.LENGTH_SHORT).show()
+                                    vm.tryLoadCurrentModel(ctx) { r ->
+                                        Toast.makeText(ctx, if (r == 0) "${e.tag} loaded" else "Load failed — retry", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                pickerExpanded = false
+                            }
+                            ModelSection("Fast models", fastModels, fastExpanded, { fastExpanded = !fastExpanded }, downloadState, progress, onPick) { tag ->
+                                deleteModelTag = tag; pickerExpanded = false
+                            }
+                            ModelSection("Large models", largeModels, largeExpanded, { largeExpanded = !largeExpanded }, downloadState, progress, onPick) { tag ->
+                                deleteModelTag = tag; pickerExpanded = false
+                            }
+                            ModelSection("Remote", remoteModels, remoteExpanded, { remoteExpanded = !remoteExpanded }, downloadState, progress, onPick) { tag ->
+                                deleteModelTag = tag; pickerExpanded = false
+                            }
                             // Tier 2: memory count
                             DropdownMenuItem(
                                 text = { Text("Memory: ${vm.memoryCount.collectAsState().value} facts (say \"remember X\")") },
@@ -602,42 +563,6 @@ Column(Modifier.padding(12.dp)) {
         }
     }
 
-    // Kai PC Settings dialog
-    if (showPcSettings) {
-        var host by remember { mutableStateOf(KaiPcClient.getHost(ctx) ?: "") }
-        var token by remember { mutableStateOf(KaiPcClient.getToken(ctx) ?: "") }
-        var scheme by remember { mutableStateOf(KaiPcClient.getScheme(ctx)) }
-        AlertDialog(
-            onDismissRequest = { showPcSettings = false },
-            title = { Text("Kai PC — Encrypted Live") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Phone sends text/file/image straight to your PC's live opencode session. PC shows it in its terminal.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text("PC IP:port (e.g. 192.168.1.10:8443)") }, singleLine = true)
-                    OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text("Token (Bearer)") }, singleLine = true)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Scheme:", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.width(8.dp))
-                        FilterChip(selected = scheme == "https", onClick = { scheme = "https" }, label = { Text("https") })
-                        Spacer(Modifier.width(4.dp))
-                        FilterChip(selected = scheme == "http", onClick = { scheme = "http" }, label = { Text("http") })
-                    }
-                    Text("On PC: python3 tools/kai_pc_server.py --port 8443 --token $token", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Or via USB: adb forward tcp:8443 tcp:8443 → use 127.0.0.1:8443", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    KaiPcClient.saveConfig(ctx, host, token, scheme)
-                    Toast.makeText(ctx, "Kai PC saved: $host", Toast.LENGTH_SHORT).show()
-                    showPcSettings = false
-                }) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPcSettings = false }) { Text("Cancel") }
-            }
-        )
-    }
     if (showGeminiSettings) {
         var gemKey by remember { mutableStateOf(GeminiClient.getApiKey(ctx) ?: "") }
         var dsKey by remember { mutableStateOf(RemoteLLMClient.getKey(ctx, "deepseek") ?: "") }
@@ -859,6 +784,54 @@ Column(Modifier.padding(12.dp)) {
             dismissButton = {
                 TextButton(onClick = { deleteModelTag = null }) { Text(Lang.t(ctx, "Cancel", "Cancelar")) }
             }
+        )
+    }
+}
+
+@Composable
+private fun ModelSection(
+    title: String,
+    entries: List<ModelEntry>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    downloadState: Map<String, Boolean>,
+    progress: Map<String, Int>,
+    onPick: (ModelEntry) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    if (entries.isEmpty()) return
+    DropdownMenuItem(
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (expanded) "▾ $title" else "▸ $title", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.width(8.dp))
+                Text("${entries.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        onClick = onToggle
+    )
+    if (!expanded) return
+    entries.forEach { e ->
+        val downloaded = downloadState[e.tag] == true
+        val pct = progress[e.tag]
+        val isRecommended = e.tag in listOf("qwen2.5-coder:3b", "gemma2:2b", "llama3.2:3b", "qwen2.5-axiom:3b")
+        val label = when {
+            e.isRemote -> "${e.tag} ✦ remote"
+            downloaded -> "${e.tag} ✓ local" + if (isRecommended) " ★" else ""
+            pct != null -> "${e.tag} ⬇ $pct%" + if (isRecommended) " ★" else ""
+            else -> "${e.tag} ⬇ ${e.sizeMb}MB" + if (isRecommended) " ★ Recommended" else ""
+        }
+        DropdownMenuItem(
+            leadingIcon = { Spacer(Modifier.width(20.dp)) },
+            text = { Text(label, style = MaterialTheme.typography.bodySmall) },
+            trailingIcon = {
+                if (downloaded && !e.isRemote) {
+                    Text("🗑", style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.clickable { onDelete(e.tag) }.padding(4.dp),
+                        color = MaterialTheme.colorScheme.error)
+                }
+            },
+            onClick = { onPick(e) }
         )
     }
 }

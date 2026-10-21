@@ -97,7 +97,7 @@ fun OpencodeTerminal(
                     SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.take(14), style = MaterialTheme.typography.labelSmall) })
                 }
             }
-            // Row 3: Kai PC live + sessions
+            // Row 3: sessions
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf("kai export --to-phone", "kai import --help", "opencode --help").forEach { cmd ->
                     SuggestionChip(onClick = { input = cmd }, label = { Text(cmd.take(14), style = MaterialTheme.typography.labelSmall) })
@@ -177,14 +177,10 @@ suspend fun runOpencodeCommand(ctx: Context, raw: String, onImportRequested: () 
         )
 
         lower == "kai launch opencode" || lower == "opencode" -> {
-            // Real launch: show that the Chat tab IS the REPL, and also try to start the PC live server if kai-pc is selected
-            val pcHost = KaiPcClient.getHost(ctx)
-            val status = if (KaiPcClient.isConfigured(ctx)) "Kai PC configured at $pcHost — live"
-                         else "Kai PC not configured — use kai-pc:live model + ⚙️ to set IP"
+            // Real launch: the Chat tab IS the REPL
             listOf(
                 "▶ Launching Kai REPL…",
-                "  Chat tab IS kai launch opencode (VFE-governed, same as desktop).",
-                "  $status",
+                "  Chat tab IS kai launch opencode (VFE-governed, on-device).",
                 "  Terminal is live — try: kai export, /ls, > echo hi, browse example.com",
                 "  Tip: In Chat, say 'export history to phone' and Kai will handle it."
             )

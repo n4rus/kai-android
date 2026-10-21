@@ -55,7 +55,7 @@ object SkillRegistry {
         Skill("vision", "Image understanding",
             "Describe images, read diagrams",
             listOf("image", "picture", "photo", "diagram", "what is in this image"),
-            "You are in VISION skill: describe what you see when given image metadata; full semantic vision runs on Kai-PC's SigLIP tower if kai-pc:live is selected."
+            "You are in VISION skill: describe what you see when given image metadata; semantic vision is unavailable offline."
         ),
     )
 
