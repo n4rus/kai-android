@@ -103,7 +103,7 @@ Optional user-initiated features (not developer collection): Kai PC bridge sends
 
 ## Release track plan
 
-1. Internal testing (upload AAB `1.1.0-vanilla3` / 10, add `lucasejs@live.com`, install from Play link)
+1. Internal testing (upload AAB `1.1.0-vanilla4` / 11, add `lucasejs@live.com`, install from Play link)
 2. Verify chat, model download, and background generation on A36 (RQGYC026B0T)
 3. Closed testing if Play requires it for new personal accounts (12 testers / 14 days)
 4. Production rollout 20% → 50% → 100%

@@ -22,8 +22,8 @@ android {
         applicationId = "com.axiom.kai"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.1.0-vanilla3"
+        versionCode = 11
+        versionName = "1.1.0-vanilla4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -53,8 +53,8 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
