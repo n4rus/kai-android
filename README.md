@@ -9,7 +9,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin)](app/src/main/java/com/axiom/kai/)
 [![Play Store](https://img.shields.io/badge/Play_Store-1.0.2--bg--service-41454A?logo=googleplay)](STORE_LISTING.md)
 
-**Package:** `com.axiom.kai` • **Current:** `1.1.0-vanilla1` (`versionCode 8`) • **AAB 25M** • **Min SDK 26** • **NDK 28.2** • **Compose Material3**
+**Package:** `com.axiom.kai` • **Current:** `1.1.0-vanilla2` (`versionCode 8`) • **AAB 25M** • **Min SDK 26** • **NDK 28.2** • **Compose Material3**
 
 This is the **clean public repo** for the Android app. The parent `axiom_horizon` (40GB history) stays private until store-ready.
 

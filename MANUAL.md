@@ -91,7 +91,7 @@ Kai is **tool-aware** `Tools.kt:407` `FUNCTION CALLING` — `YOU CAN CALL THEM Y
 
 ## 6. No Account (Vanilla 1)
 
-Kai has **no account, no login, no email, no Firebase**. The account system was removed in `1.1.0-vanilla1`.
+Kai has **no account, no login, no email, no Firebase**. The account system was removed in `1.1.0-vanilla2`.
 
 - Open the app and chat — nothing to create or verify
 - Chats and memories live in the app-private Room `kai.db`
@@ -157,6 +157,6 @@ See `PRIVACY_POLICY.md` — no account, no data collected/shared, `kai.db` local
 
 ## 12. Versions
 
-`1.1.0-vanilla1` `v8` `AAB 25M` `APK 21M` `minSdk 26` `targetSdk 36` `Billing 8.3.0` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
+`1.1.0-vanilla2` `v8` `AAB 25M` `APK 21M` `minSdk 26` `targetSdk 36` `Billing 8.3.0` `Room 2.6.1` `pdfbox 2.0.27.0` `NDK 28.2` `llama-cpp-2 0.1.154` `vulkan`. Previous `1.0.1-pro-ads-vfe` `v4`, `1.0.0` `v3`.
 
 License MIT — `github.com/n4rus/kai-android`
